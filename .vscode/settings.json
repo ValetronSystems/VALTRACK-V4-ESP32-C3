@@ -1,0 +1,25 @@
+{
+    "idf.adapterTargetName": "esp32c3",
+    "idf.openOcdConfigs": [
+        "board/esp32c3-builtin.cfg"
+    ],
+    "idf.portWin": "COM17",
+    "idf.flashType": "UART",
+    "files.associations": {
+        "sci.h": "c",
+        "led_strip.h": "c",
+        "frontpanel.h": "c",
+        "freertos.h": "c",
+        "queue.h": "c",
+        "at24c.h": "c",
+        "i2c.h": "c",
+        "circularbuffer.h": "c",
+        "adc.h": "c",
+        "string.h": "c",
+        "rtc_io.h": "c",
+        "gpio.h": "c",
+        "rtc_periph.h": "c",
+        "stdio.h": "c",
+        "esp_log.h": "c"
+    }
+}

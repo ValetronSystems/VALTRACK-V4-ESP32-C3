@@ -3,7 +3,7 @@
     "idf.openOcdConfigs": [
         "board/esp32c3-builtin.cfg"
     ],
-    "idf.portWin": "COM4",
+    "idf.portWin": "COM17",
     "idf.flashType": "UART",
     "files.associations": {
         "sci.h": "c",
@@ -20,8 +20,6 @@
         "gpio.h": "c",
         "rtc_periph.h": "c",
         "stdio.h": "c",
-        "esp_log.h": "c",
-        "esp_sleep.h": "c"
-    },
-    "cmake.configureOnOpen": true
+        "esp_log.h": "c"
+    }
 }

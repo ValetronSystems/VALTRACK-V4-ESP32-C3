@@ -59,7 +59,7 @@ unsigned char f;
 static QueueHandle_t uart0_queue;
 void osDelay(unsigned int Value)
 {
-    vTaskDelay(Value / portTICK_PERIOD_MS);
+    vTaskDelay(Value / portTICK_RATE_MS);
 }
 char sBuff[500];
 static void uart_event_task(void *pvParameters)
@@ -72,7 +72,7 @@ static void uart_event_task(void *pvParameters)
     uint8_t* dtmp = (uint8_t*) malloc(RD_BUF_SIZE);
     for(;;) {
         //Waiting for UART event.
-        if(xQueueReceive(uart0_queue, (void * )&event, (TickType_t)portMAX_DELAY)) {
+        if(xQueueReceive(uart0_queue, (void * )&event, (portTickType)portMAX_DELAY)) {
             bzero(dtmp, RD_BUF_SIZE);
             //ESP_LOGI(TAG, "uart[%d] event:", UART_PORT_NUM);
             switch(event.type) {
@@ -688,8 +688,8 @@ void HandleGPSINFData(unsigned char Byte)
                         sscanf( (void*)Long, "%f", &fLong);
                         sscanf( (void*)Altitude, "%f", &fAltitude);
                         sscanf( (void*)Speed, "%f", &fSpeed);
-                        sscanf( (void*)GPSDate, "%2d%2d%2d", (int*)&GPSDay,(int*)&GPSMonth,(int*)&GPSYear);
-                        sscanf( (void*)GPSTime, "%2d%2d%2d", (int*)&GPSHours,(int*)&GPSMinutes,(int*)&GPSSeconds);
+                        sscanf( (void*)GPSDate, "%2d%2d%2d", &GPSDay,&GPSMonth,&GPSYear);
+                        sscanf( (void*)GPSTime, "%2d%2d%2d", &GPSHours,&GPSMinutes,&GPSSeconds);
                         if(D1 == 'S')fLat *= -1;
                         if(D2 == 'W')fLong *= -1;
                         fLat = GPRMC2Degrees(fLat);

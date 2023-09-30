@@ -19,6 +19,7 @@
 #include "freertos/task.h"
 #include "esp_sleep.h"
 #include "esp_log.h"
+#include "driver/adc.h"
 #include "driver/rtc_io.h"
 #include "soc/rtc.h"
 #include "SCI.h"
@@ -39,13 +40,7 @@
 
 
 //////////
-#ifdef VALTRACK_V4_VTS
-
-    #define DEFAULT_WAKEUP_PIN      GPIO_INT1//GPIO_CHG_IN//GPIO_INT1
-#else 
-    #define DEFAULT_WAKEUP_PIN      GPIO_CHG_IN//GPIO_INT1
-#endif
-
+#define DEFAULT_WAKEUP_PIN      GPIO_INT1
 #define DEFAULT_WAKEUP_LEVEL    ESP_GPIO_WAKEUP_GPIO_LOW
 #define CONFIG_EXAMPLE_GPIO_WAKEUP
 ////////////
@@ -137,8 +132,8 @@ void SleepWakeupReason(void)
             uint64_t wakeup_pin_mask = esp_sleep_get_gpio_wakeup_status();
             if (wakeup_pin_mask != 0) {
                 int pin = __builtin_ffsll(wakeup_pin_mask) - 1;
-                 ESP_LOGW(TAG,"Wake up from GPIO %d\n", pin);
-                //ESP_LOGW(TAG,"Wake up from Motion Sensor Interrupt - INT1");
+                // ESP_LOGW(TAG,"Wake up from GPIO %d\n", pin);
+                ESP_LOGW(TAG,"Wake up from Motion Sensor Interrupt - INT1");
             } else {
                 ESP_LOGW(TAG,"Wake up from GPIO\n");
             }
@@ -242,8 +237,7 @@ void EnterDeepSleep(void)
     };
     ESP_ERROR_CHECK(gpio_config(&config));
     ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT(DEFAULT_WAKEUP_PIN), DEFAULT_WAKEUP_LEVEL));
-    ESP_LOGI(TAG,"Enabling GPIO wakeup on pins GPIO%d\n", DEFAULT_WAKEUP_PIN);
-
+    ESP_LOGW(TAG,"Enabling GPIO wakeup on pins GPIO%d\n", DEFAULT_WAKEUP_PIN);
 #endif
 
 #ifdef CONFIG_EXAMPLE_TOUCH_WAKEUP

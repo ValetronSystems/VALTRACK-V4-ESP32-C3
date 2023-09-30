@@ -8,7 +8,6 @@
 ***************************************************************************/
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -24,137 +23,6 @@
 #include "MotionSensor.h"
 #include "ADC.h"
 #include "DeepSleep.h"
-
-#include "freertos/event_groups.h"
-#include "esp_event.h"
-#include <nvs_flash.h>
-
-// #include "esp_nimble_hci.h"
-// #include "nimble/nimble_port.h"
-// #include "nimble/nimble_port_freertos.h"
-// #include "host/ble_hs.h"
-// #include "services/gap/ble_svc_gap.h"
-// #include "services/gatt/ble_svc_gatt.h"
-
-
-// //char *TAG = "BLE-Server";
-// uint8_t ble_addr_type;
-// void ble_app_advertise(void);
-// char strb[500];
-// int c=0;
-// // Write data to ESP32 defined as server
-// static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-// {
-//     char s[100];
-//     c+=ctxt->om->om_len;
-//     sprintf(s,"%.*s", ctxt->om->om_len, ctxt->om->om_data);
-//     strcat(strb,s);
-    
-//     if(c>=100)
-//         {
-//             printf(strb);c=0;
-//         }
-//     printf("%d",c);
-//     return 0;
-// }
-// int btx=0;
-// // Read data from ESP32 defined as server
-// static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-// {
-//     char s[30];
-//     snprintf(s,_countof(s),"123456789567890%d",btx++);
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     return 0;
-// }
-
-// // Array of pointers to other service definitions
-// // UUID - Universal Unique Identifier
-// static const struct ble_gatt_svc_def gatt_svcs[] = {
-//     {.type = BLE_GATT_SVC_TYPE_PRIMARY,
-//      .uuid = BLE_UUID16_DECLARE(0x180),                 // Define UUID for device type
-//      .characteristics = (struct ble_gatt_chr_def[]){
-//          {.uuid = BLE_UUID16_DECLARE(0xFEF4),           // Define UUID for reading
-//           .flags = BLE_GATT_CHR_F_READ,
-//           .access_cb = device_read},
-//          {.uuid = BLE_UUID16_DECLARE(0xDEAD),           // Define UUID for writing
-//           .flags = BLE_GATT_CHR_F_WRITE,
-//           .access_cb = device_write},
-//          {0}}},
-//     {0}};
-
-// // BLE event handling
-// static int ble_gap_event(struct ble_gap_event *event, void *arg)
-// {
-//     switch (event->type)
-//     {
-//     // Advertise if connected
-//     case BLE_GAP_EVENT_CONNECT:
-//         ESP_LOGI("GAP", "BLE GAP EVENT CONNECT %s", event->connect.status == 0 ? "OK!" : "FAILED!");
-//         if (event->connect.status != 0)
-//         {
-//             ble_app_advertise();
-//         }
-//         break;
-//     // Advertise again after completion of the event
-//     case BLE_GAP_EVENT_ADV_COMPLETE:
-//         ESP_LOGI("GAP", "BLE GAP EVENT");
-//         ble_app_advertise();
-//         break;
-//     default:
-//         break;
-//     }
-//     return 0;
-// }
-
-// // Define the BLE connection
-// void ble_app_advertise(void)
-// {
-//     // GAP - device name definition
-//     struct ble_hs_adv_fields fields;
-//     const char *device_name;
-//     memset(&fields, 0, sizeof(fields));
-//     device_name = ble_svc_gap_device_name(); // Read the BLE device name
-//     fields.name = (uint8_t *)device_name;
-//     fields.name_len = strlen(device_name);
-//     fields.name_is_complete = 1;
-//     ble_gap_adv_set_fields(&fields);
-
-//     // GAP - device connectivity definition
-//     struct ble_gap_adv_params adv_params;
-//     memset(&adv_params, 0, sizeof(adv_params));
-//     adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // connectable or non-connectable
-//     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // discoverable or non-discoverable
-//     ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
-// }
-
-// // The application
-// void ble_app_on_sync(void)
-// {
-//     ble_hs_id_infer_auto(0, &ble_addr_type); // Determines the best address type automatically
-//     ble_app_advertise();                     // Define the BLE connection
-// }
-
-// // The infinite task
-// void host_task(void *param)
-// {
-//     nimble_port_run(); // This function will return only when nimble_port_stop() is executed
-// }
-
 #ifdef VALTRACK_V4_VTS
 const char *TAG = "VALTRACK-V4-VTS";
 #else
@@ -189,7 +57,7 @@ const char *TAG = "VALTRACK-V4-MF";
 
 void SystemClock_Config(void);
 void Error_Handler(void);
-void DeepSleep (void);
+
 void InitRTCAlarm(void);
 
 const StringType ETypes[]=
@@ -276,7 +144,7 @@ unsigned long  IntervalTimer;
 unsigned short MotionTimer=0;
 unsigned short HeartBeatTimer = 0;
 unsigned short NoSignalTimer=0;
-unsigned short ButtonPressTimer=0;
+unsigned short LeverWaitTimer=0;
 unsigned short AuthenticationTimer = 0;
 unsigned short BatteryCheckTimer=950;
 unsigned char BatteryTimeout=0;
@@ -292,7 +160,6 @@ unsigned char ticks;
 unsigned char DeviceStatus = 1;
 unsigned char SysClockConfigFlag=0;
 unsigned char SleepModeEnabled=0,RTCSleepModeEnabled = 0;
-unsigned char PowerButtonSleep = 0;
 
 int ChargeStatus,ChargeLevel,ChargeVoltage,ChargingState;
 float ChargeVoltageF=0;
@@ -384,7 +251,7 @@ const ParamsType DefaultParams = {
 };
 #endif
 //NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
-//ParamsType Params;
+ParamsType Params;
 
 
 MotionStatusType INT1;
@@ -444,7 +311,7 @@ unsigned char ValidRFIDCardLength;
 unsigned char ImageSent = 0, ImageIndex = 0,ImagePresent=0,SendingImageIndex=0,ImageStored=0;    
 //IDPacketType DeviceID;
 GeneralEventType GEvent;
-char IMEI[16],IMSI[16],/*time[21],ctime[21],*/etype,*presult,bac,filename[32];
+char IMEI[16],IMSI[16],time[21],ctime[21],etype,*presult,bac,filename[32];
 //PackedGeneralEventType PGEvent;
 HWEventDataType CPacket,GPacket;
 const char dummyevent[]={"0D00000000000000000033002300000000"};
@@ -486,7 +353,7 @@ extern unsigned short BatteryCheckTimer;
 extern unsigned char BatteryTimeout;
 extern int FrontPanelTimer;
 
-//unsigned short ButtonPressTimer = 0;
+unsigned char ButtonPressTimer = 0;
 unsigned char pSOS = 0;
 unsigned char tmpFlagClearer;
 unsigned char BTInitialized = 0;
@@ -494,7 +361,6 @@ unsigned char BTInitialized = 0;
 
 
 unsigned long lastTickValue=0;
-//unsigned long ButtonLastTickValue=0;
 char MResponsePacket[2] = {0x01,0x00};
 extern unsigned char AppAuthenticated;
 void DisconnectDevice(void);
@@ -527,7 +393,7 @@ static esp_err_t i2c_master_init(void)
  */
 static esp_err_t motion_sensor_register_read(uint8_t reg_addr, uint8_t *data, size_t len)
 {
-    return i2c_master_write_read_device(I2C_MASTER_NUM, ACCLEROMETER_I2C_ADDRESS, &reg_addr, 1, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    return i2c_master_write_read_device(I2C_MASTER_NUM, ACCLEROMETER_I2C_ADDRESS, &reg_addr, 1, data, len, I2C_MASTER_TIMEOUT_MS / portTICK_RATE_MS);
 }
 
 /**
@@ -538,7 +404,7 @@ static esp_err_t motion_sensor_register_write_byte(uint8_t reg_addr, uint8_t dat
     int ret;
     uint8_t write_buf[2] = {reg_addr, data};
 
-    ret = i2c_master_write_to_device(I2C_MASTER_NUM, ACCLEROMETER_I2C_ADDRESS, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    ret = i2c_master_write_to_device(I2C_MASTER_NUM, ACCLEROMETER_I2C_ADDRESS, write_buf, sizeof(write_buf), I2C_MASTER_TIMEOUT_MS / portTICK_RATE_MS);
 
     return ret;
 }
@@ -759,7 +625,7 @@ void CheckSignalStrength(void)
 float NLat,NLong;
 NetworkLocationStatusType NStatus;
 int NAccuracy;
-char NLPacket[80];
+char NLPacket[60];
 void CheckNetworkLocation(void)
 {
     char*pToken;
@@ -776,13 +642,13 @@ void CheckNetworkLocation(void)
     pToken = MapForward(Buff2,70,(char*)"+CLBS:",6);
     if(pToken != NULL)
     {
-        sscanf((void*)pToken,"+CLBS: %d",(int*)&NStatus);
+        sscanf((void*)pToken,"+CLBS: %d",&NStatus);
         if(NStatus == NL_SUCCESS)
         {
             pToken+=6;
             //osDelay(1000);//DelayProc(50000);
-            sscanf((void*)pToken,"%d,%f,%f,%d",(int*)&NStatus,&NLat,&NLong,(int*)&NAccuracy);
-            snprintf((void*)NLPacket,_countof(NLPacket),",\"nlat\":\"%f\",\"nlon\":\"%f\",\"ncsq\":\"%s\"",NLat,NLong,SignalStrength);
+            sscanf((void*)pToken,"%d,%f,%f,%d",&NStatus,&NLat,&NLong,&NAccuracy);
+            sprintf((void*)NLPacket,",\"nlat\":\"%f\",\"nlon\":\"%f\",\"ncsq\":\"%s\"",NLat,NLong,SignalStrength);
             //sprintf((void*)NLPacket,",\"nlat\":\"%f\",\"nlon\":\"%f\",\"ltype\":\"NL\"",NLat,NLong);
         }
     }
@@ -817,18 +683,11 @@ void EnableGSM(void)
     // Enable power to GSM
     gpio_set_level(GPIO_GSM_ENABLE, 1); 
     GSMEnabled = 1;
-    //osDelay(8000);
-} 
+    // osDelay(3000);
+}
 
 void DisableGSM(void)
 {
-    #ifdef SIM7600
-    SendATCommand("AT+CPOF\r\n","OK","ERROR",10);// Disconnect network and shutdown
-    #endif
-    #ifdef SIM7070
-    SendATCommand("AT+CPOWD=1\r\n","NORMAL","ERROR",10);// Disconnect network and shutdown
-    #endif
-    
     // Disable power to GSM
     gpio_set_level(GPIO_GSM_ENABLE, 0);   
     GSMEnabled = 0;
@@ -1550,7 +1409,6 @@ unsigned char InitGSM(void)
     
     //osDelay(1000);
     EnableGSM();
-    
     if(FirstBoot == 0)
         goto SKIP_RESET;
     RESTART:
@@ -1560,7 +1418,6 @@ unsigned char InitGSM(void)
     DisableGSM();
     //osDelay(500);
     EnableGSM();
-    // osDelay(3000);
     //GSM_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
     gpio_set_level(GPIO_PWRKEY,1);
    
@@ -1577,7 +1434,6 @@ unsigned char InitGSM(void)
     while(1)
     {
         
-        
         if((MapForward(Buff2,BUFF2_SIZE,(char*)"DONE",4) != NULL) || (LoopTimeout1>10))
         {       break; }
         if((MapForward(Buff2,BUFF2_SIZE,(char*)"ATREADY",7) != NULL) || (LoopTimeout1>10))
@@ -1586,9 +1442,10 @@ unsigned char InitGSM(void)
         {       break; }
         
     }
-
+        
+  
     UpdateNetwork(0);
-    osDelay(5000);
+    
      if(DeviceStatus == 0)
         return 3;
     //osDelay(1000);
@@ -1732,11 +1589,11 @@ unsigned char InitGSM(void)
         IMSI[15] = '\0';
     }
  
-    // SendATCommand("AT+COPS=?\r\n","OK","ERROR",500);    
     
-    // #ifdef SIM7070
-    // osDelay(10000);
-    // #endif
+    
+    #ifdef SIM7070
+    osDelay(10000);
+    #endif
     if(CheckNetwork() == 1)
     {
         #ifdef DEBUG_PRINT
@@ -1764,17 +1621,13 @@ unsigned char InitGSM(void)
     
     #ifdef EXT_ANT_ENABLED
     
-            #if defined(SIM7600)  
-                SendATCommand("AT+CGPS=1,1\r\n","OK","ERROR",3);
-            #endif
-            #if defined(SIM7070)  
-                SendATCommand("AT+CGNSPWR=1\r\n","OK","ERROR",3);     
-            #endif       
+        #if defined(SIM7600) || defined(SIM7070) 
+            SendATCommand("AT+CGPS=1,1\r\n","OK","ERROR",3);
             #if defined(A7672)
-                SendATCommand("AT+CGNSSPWR=1\r\n","READY","ERROR",60);
+            SendATCommand("AT+CGNSSPWR=1\r\n","READY","ERROR",60);
             #endif
-            // SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
-        
+            SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
+        #endif
     #endif
 
 
@@ -1810,7 +1663,7 @@ unsigned char InitGSM(void)
     }
 
     
-    // CheckNetworkLocation();
+    CheckNetworkLocation();
    
     return 0;
 }
@@ -1907,7 +1760,34 @@ void StartTimerTask(void *argument)
     //vTaskDelay(1);
       if(SleepModeEnabled == 1) 
       {
+//            DisableGSM();
+//            
+//            //    BAT R PA7
+//            //    BAT G PB5
+//            //    BAT B PB3
+//            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3,GPIO_PIN_SET);
 
+//            // NET-R: PB8
+//            // NET-G: PB9
+//            // NET-B: PA6
+//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6,GPIO_PIN_SET);
+
+//            //    LOC R PA12
+//            //    LOC G PB2
+//            //    LOC B PA5
+//            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_12,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2,GPIO_PIN_SET);
+//            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5,GPIO_PIN_SET);
+//            
+//            __HAL_RCC_GPIOC_CLK_DISABLE();
+//            __HAL_RCC_GPIOH_CLK_DISABLE();
+//            __HAL_RCC_GPIOB_CLK_DISABLE();
+//            __HAL_RCC_GPIOA_CLK_DISABLE();
+//            __HAL_RCC_GPIOE_CLK_DISABLE();
             //osThreadFlagsWait( 1, osFlagsWaitAny, osWaitForever);// TBD
       }
       //HandleGPSData();  
@@ -1920,95 +1800,7 @@ void StartTimerTask(void *argument)
         ESP_LOGI(TAG,"SystemTimer>15");
         while(1);
     }
-    
-    /* USER CODE BEGIN SysTick_IRQn 1 */
-   
-    INT1 = (MotionStatusType)gpio_get_level(GPIO_INT1);
-    #ifndef VALTRACK_V4_VTS
-        ChargingStatus = (ChargingStatusType)gpio_get_level(GPIO_CHARGER_PIN);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
-        if(ChargingStatus == CONNECTED)// && pChargingStatus == DISCONNECTED)
-        {
-            FrontPanelTimer = 0; // Battery LED Always ON during charging
-            UpdateNetwork(3);
-            UpdateLocation(0);
-            WriteLEDStatus();
-            //pChargingStatus = ChargingStatus;
-        }
-    #endif
-        //if(LEDInhibit == 0) 
-    //    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,!INT1);
-    
-    SOS = gpio_get_level(GPIO_SOS);
-
-    
-    
-    if(POWER_BUTTON == 1) 
-        SOSActivated = 1; 
         
-    #ifdef POWER_BUTTON_SOS_SWAP
-        SOS = POWER_BUTTON;
-    #endif
-    // reboot on press code
-    #ifndef VALTRACK_V4_VTS
-        if(SOS == 1)
-        {
-            ButtonPressTimer = 0;
-        }
-        if(ButtonPressTimer > 4) 
-        {
-            ESP_LOGI(TAG,"Rebooting from StartTimer - ButtonLongPress");
-            MakeAllLED(PURPLE);
-            WriteLEDStatus();
-            osDelay(2000);
-            //esp_restart();
-            //PowerButtonSleep = 1;
-            //DeepSleep();
-        }
-    #endif
-    // end
-    if(SOS != pSOS)
-    {
-        
-        if(SOS == 0)
-        {
-            FrontPanelTimer = 0;
-      
-            #ifndef WB_PIN_CONTROLLED_LED
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET);
-            BackupPCAStatus();
-            #endif
-        }
-        if(SOS == 1)
-        {
-            //ButtonPressTimer = 0;
-            #ifndef WB_PIN_CONTROLLED_LED
-            if(DeviceStatus == 1)
-            {
-                RestorePCAStatus();
-                //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET);
-            }
-            #endif
-        }
-        
-        
-        pSOS = SOS;
-    }
-    if(INT1 == 0)
-    {
-        #ifndef TIMER_ONLY_WAKEUP
-            MotionTimer=0;
-        
-            #ifdef VALTRACK_V4_VTS
-                if(FrontPanelTimer > 120)
-                {
-                    MakeAllLED(PURPLE);
-                }
-                FrontPanelTimer=0;
-            #endif
-        
-        #endif
-       
-    }
     if(xTaskGetTickCount() - lastTickValue >= 100)//++tSeconds>=1000)
     {
         lastTickValue = xTaskGetTickCount();
@@ -2029,7 +1821,6 @@ void StartTimerTask(void *argument)
         LoopTimeout3++;
         FrontPanelTimer++;
         DebounceTimer++;
-        ButtonPressTimer++;
         //GSMResetTimer++;
         LPUARTTimer++;
         ConnectivityTimer++;
@@ -2056,7 +1847,7 @@ void StartTimerTask(void *argument)
         {
            //VALTRACK_BLE_Advertise(0); //TBD
         }
-        if(IntervalTimer > Params.Fields.PingInterval && ChargingStatus == DISCONNECTED)
+        if(IntervalTimer > Params.Fields.PingInterval)
         {
             #ifdef MOTION_CONTROLLED_PINGS
                 if(MotionTimer<TIME_TO_SLEEP)
@@ -2079,7 +1870,7 @@ void StartTimerTask(void *argument)
             DisableGSM();
             BackupPackets();
             //WriteSRAM(LPUART_TIMER_RESET); // TBD
-            ESP_LOGI(TAG,"Rebooting from StartTimer - LPUARTTimer>180");
+            ESP_LOGW(TAG,"Rebooting from StartTimer - LPUARTTimer>180");
             esp_restart();
         }
         
@@ -2106,7 +1897,7 @@ void StartTimerTask(void *argument)
          }
 
         EEPROMReadTimer++;
-        
+        LeverWaitTimer++;
 
         
         
@@ -2153,13 +1944,70 @@ void StartTimerTask(void *argument)
         tSeconds=0; 
         //HAL_RTC_GetTime(&hrtc, &R, RTC_FORMAT_BIN);
         //HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-        ESP_LOGE(TAG," ST = %d, MT= %d, FT = %d, INT1 = %d, SE = %d, V = %0.2f, HT/LT = %d/%d, G = %c, SW = %d, C = %d",
-         SystemTimer,MotionTimer,FrontPanelTimer,INT1,SleepModeEnabled,ADCBatteryVoltage,HeadIndex,TailIndex,GPSStatus,SOS,ChargingStatus);
-         
+        ESP_LOGE(TAG," ST = %d , MT= %d , FT = %d , INT1 = %d , SE = %d , V = %0.2f , HT/LT = %d/%d, G = %c , C = %d ",
+         SystemTimer,MotionTimer,FrontPanelTimer,INT1,SleepModeEnabled,ADCBatteryVoltage,HeadIndex,TailIndex,GPSStatus,ChargingStatus);
          vTaskDelay(1);
         
     }
    
+    /* USER CODE BEGIN SysTick_IRQn 1 */
+   
+    INT1 = (MotionStatusType)gpio_get_level(GPIO_INT1);
+    ChargingStatus = (ChargingStatusType)gpio_get_level(GPIO_CHARGER_PIN);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
+    
+        //if(LEDInhibit == 0) 
+    //    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,!INT1);
+    
+    SOS = gpio_get_level(GPIO_SOS);
+
+    
+    
+    if(POWER_BUTTON == 1) 
+        SOSActivated = 1; 
+        
+    #ifdef POWER_BUTTON_SOS_SWAP
+        SOS = POWER_BUTTON;
+    #endif
+    
+
+    if(SOS != pSOS)
+    {
+        if(SOS == 0)
+        {
+            FrontPanelTimer = 0;
+            #ifndef WB_PIN_CONTROLLED_LED
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET);
+            BackupPCAStatus();
+            #endif
+        }
+        if(SOS == 1)
+        {
+            #ifndef WB_PIN_CONTROLLED_LED
+            if(DeviceStatus == 1)
+            {
+                RestorePCAStatus();
+                //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET);
+            }
+            #endif
+        }
+        pSOS = SOS;
+    }
+    if(INT1 == 0)
+    {
+        #ifndef TIMER_ONLY_WAKEUP
+            MotionTimer=0;
+        
+            #ifdef VALTRACK_V4_VTS
+                if(FrontPanelTimer > 120)
+                {
+                    MakeAllLED(PURPLE);
+                }
+                FrontPanelTimer=0;
+            #endif
+        
+        #endif
+       
+    }
     
    // PG_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_5);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
    // CHG_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_6);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
@@ -2289,11 +2137,11 @@ void GetNetworkLocation(void)
             pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CLBS:",6);
             if(pToken != NULL)
             {
-                sscanf((void*)pToken,"+CLBS: %d",(int*)&NStatus);
+                sscanf((void*)pToken,"+CLBS: %d",&NStatus);
                 if(NStatus == NL_SUCCESS)
                 {
                     //osDelay(1000);//DelayProc(50000);
-                    sscanf((void*)Buff2,"+CLBS: %d,%f,%f,%d",(int*)&NStatus,&NLat,&NLong,(int*)&NAccuracy);
+                    sscanf((void*)Buff2,"+CLBS: %d,%f,%f,%d",&NStatus,&NLat,&NLong,&NAccuracy);
                     sprintf((void*)NLPacket,",\"nlat\":\"%f\",\"nlon\":\"%f\",\"ltype\":\"NL\"",NLat,NLong);
                 }
             }
@@ -2358,7 +2206,7 @@ void HandleNetworkTowerData(char *pData,NetworkDataType *pNetworkData)
     while (pToken != NULL)
     {
         pToken = strtok (NULL, seps);
-        sscanf (pToken, "%s", (char*)&pNetworkData->Params[i]);
+        sscanf (pToken, "%s", &pNetworkData->Params[i]);
         
         i++;
         if(i>10) break;
@@ -2850,7 +2698,7 @@ char XHTTP_Request(char *pFilename, unsigned char pingtype)
     pPacket = &GPacket;
     //retries = 0; 
     
-    if(ChargingStatus == CONNECTED) return 0;
+    
     
 //#ifndef STANDALONE_DEMO
 //    CheckSum = GetCheckSum(pPacket->Bytes,34);
@@ -3237,52 +3085,38 @@ exit:
 }
 #endif // SIM7600
 #ifdef SIM7070
-void URLDivider(char *pURL,int URLSize, char *pDomain,int DomainSize, char *pPath, int PathSize)
+void URLDivider(char *pURL,char *pDomain,char *pPath)
 {
-
     char seps[3] ="/";
     char *pToken;
     unsigned char i=0;
-    unsigned short dlength=0,plength=0;
-    char URL[200];
-    memcpy(URL,pURL,URLSize); // Because strtok destroys original string
-    // dlength = sizeof(pDomain);
-    memset(pDomain,0,DomainSize);
-    //ESP_LOGI(TAG,"%d,%d\r\n",DomainSize,PathSize);
-    // plength = sizeof(pPath);
-    memset(pPath,0,PathSize);
-    
-    pToken = strtok (URL,seps);
+    memset(pDomain,0,sizeof(pDomain));
+    memset(pPath,0,sizeof(pPath));
+    pToken = (void*)strtok ((void*)pURL,seps);
     if(pToken != NULL)
     {   
         strcat(pDomain,pToken);
         strcat(pDomain,"//");
-        pToken = strtok (NULL,seps);
-        //ESP_LOGI(TAG,"%s\r\n",pToken);
+        pToken = (void*)strtok (NULL,seps);
+        
         if(pToken != NULL)
-            strcat(pDomain,pToken);
+            strcat((void*)pDomain,(void*)pToken);
     }
   
     while (pToken != NULL)
     {
-        
-        pToken = strtok (NULL, seps);
+        strcat(pPath,"/");
+        pToken = (void*)strtok (NULL, seps);
         
         if(pToken != NULL) 
-        {
-            strcat(pPath,"/");
-            strcat(pPath,(void*)pToken);
-        }            
+            strcat((void*)pPath,(void*)pToken);
         else
-        {
             break;
-        }
 
         i++;
         if(i>10) break;
     }
 }
-
 char YHTTP_Request(char *pFilename, unsigned char pingtype)
 {}
 #endif // SIM7070
@@ -3833,9 +3667,9 @@ void SyncRTC (void)
 
 void DeepSleep (void)
 {
-    if((Params.Fields.WorkingMode[0]=='T'  || Params.Fields.WorkingMode[0]=='H') || PowerButtonSleep == 1)
+    if(Params.Fields.WorkingMode[0]=='T'  || Params.Fields.WorkingMode[0]=='H')
     {
-      if(((MotionTimer > TIME_TO_SLEEP) && (IsQueueEmpty(RAMQueue)==0)) || PowerButtonSleep == 1)
+      if((MotionTimer > TIME_TO_SLEEP) && (IsQueueEmpty(RAMQueue)==0))
         {
 //            if(GSMEnabled == 1)
 //            {    
@@ -3854,7 +3688,6 @@ void DeepSleep (void)
         //if(SleepModeEnabled == 1) 
         {
             MakeAllLED(TURN_OFF); // Because Disable GSM turns off power to LED
-
             DisableGSM();           
             
             ESP_LOGI(TAG,"Init Accelerometer : Before Entering Sleep");
@@ -3867,11 +3700,10 @@ void DeepSleep (void)
             InitRTCAlarm();
             SleepModeEnabled = 1;
             DisableMainPower();
-            // nimble_port_stop(); // BLE
             /////////////////////////////////////
             /* Initialize selected GPIO as RTC IO, enable output, disable pullup and pulldown, enable hold*/
             gpio_hold_en(GPIO_TPS_ENABLE);
-            gpio_hold_en(GPIO_GSM_ENABLE);
+            // gpio_hold_en(GPIO_GSM_ENABLE);
             gpio_deep_sleep_hold_en();
             /////////////////////////////////
             EnterDeepSleep();
@@ -4084,7 +3916,7 @@ void StartMainTask(void *argument)
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
-ESP_LOGI(TAG,"Entered main task");
+
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 //  HAL_Init();
 
@@ -4098,7 +3930,7 @@ ESP_LOGI(TAG,"Entered main task");
     if(BootReason <= 8)
     {
         // Print1("\r\n\r\n");
-        ESP_LOGI(TAG,"Boot Reason = %s",(char*)(BootReasons[BootReason].Bytes)); // TBD
+        ESP_LOGI(TAG,"Boot Reason = %s",(void*)(BootReasons[BootReason].Bytes)); // TBD
         // Print1("\r\n\r\n");
     }
 //  /* USER CODE BEGIN SysInit */
@@ -4117,12 +3949,10 @@ ESP_LOGI(TAG,"Entered main task");
     #ifndef WB_PIN_CONTROLLED_LED
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET); // LED Controller Enable
     #endif
-
-    EnableGSM(); // For LED
-    // UpdateLED1(RED_COLOR);
-    // UpdateLED3(RED_COLOR);
+    UpdateLED1(RED_COLOR);
+    UpdateLED3(RED_COLOR);
     
-    // UpdateNetwork(0);
+    UpdateNetwork(0);
     
     // TBD
     // ADCBatteryVoltage = (((float)BatteryADCCount*ADC_REFERENCE*(float)DIVIDER_FACTOR)/4096);
@@ -4137,21 +3967,12 @@ ESP_LOGI(TAG,"Entered main task");
 
 
     //GSM_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
-    // ESP_LOGI(TAG,"Reached Enable GSM");
-    #ifndef VALTRACK_V4_VTS
-    ChargingStatus = (ChargingStatusType)gpio_get_level(GPIO_CHARGER_PIN);
-
-    if( (ChargingStatus == CONNECTED) || (ADCBatteryVoltage < 3.0))
-    {
-        goto CHECK_CHARGER_STATE;
-    }
-    #endif
     
     EnableGSM();
     gpio_set_level(GPIO_PWRKEY,1);
     osDelay(1000);
     gpio_set_level(GPIO_PWRKEY,0);
-    // ESP_LOGI(TAG,"After Enable GSM");
+    
     //while(1){LPUARTTimer=0;}
     // STANDBY DELAY
     //osDelay(5000);
@@ -4266,10 +4087,8 @@ ESP_LOGI(TAG,"Entered main task");
 //        }
 //    }
     InitAccelerometer();
-   
 //goto DIE;
     osDelay(5000);
-   
     if(InitGSM() == 3)
     {
         MotionTimer = TIME_TO_SLEEP+1; //  Make sure no events are in queue to enter sleep
@@ -4462,15 +4281,12 @@ ESP_LOGI(TAG,"Entered main task");
         //UpdateBattery(BatteryValue);
         
 #ifndef VALTRACK_V4_VTS
-            CHECK_CHARGER_STATE:
-            if( (ChargingStatus == CONNECTED) || (ADCBatteryVoltage < 3.0))
+            if(ChargingStatus == 1)
             {
-                //DeviceStatus = 0;
                 
-                ESP_LOGI(TAG,"Entered Charging Loop");
+                
                 DisableGSM();
-                osDelay(1000);
-                EnableGSM(); // For LED
+                
                 UpdateNetwork(3);
                 UpdateLocation(0);
                 
@@ -4486,22 +4302,15 @@ ESP_LOGI(TAG,"Entered main task");
                 SystemClockConfig_STOP();*/
                 while(1)
                 {
-                    if(ChargingStatus == CONNECTED)
+                    if(ChargingStatus == 1)
                     {
-                        LPUARTTimer = 0;// Feed UART Timer
-                        
                         osDelay(5000);
-                        // Was disconnected if was here
-                        
-                    }
-                    if(ChargingStatus == DISCONNECTED && ADCBatteryVoltage > 3.5)
-                    {
-                        // WriteSRAM(CHARGER_RESET); // TBD
-                        ESP_LOGI(TAG,"------Rebooting from StartMainTask ChargingStatus=1");
-                        MakeAllLED(PURPLE);
-                        osDelay(1000);
-                        esp_restart();// NVIC_SystemReset();//break;// TBD
-                        //osDelay(5000);
+                        if(ChargingStatus == 1)
+                        {
+                            // WriteSRAM(CHARGER_RESET); // TBD
+                            ESP_LOGW(TAG,"Rebooting from StartMainTask ChargingStatus=1");
+                            esp_restart();// NVIC_SystemReset();//break;// TBD
+                        }
                     }
                     //HAL_ADC_Start_DMA(&hadc1, (void*)&BatteryADCCount , 1); //TBD
                     osDelay(500);

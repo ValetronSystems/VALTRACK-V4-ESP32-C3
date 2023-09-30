@@ -96,8 +96,8 @@ typedef enum IndicatorLEDs
 
 typedef enum ChargingStatuses
 {
-    CONNECTED = 1,
-    DISCONNECTED = 0,
+    CONNECTED = 0,
+    DISCONNECTED = 1,
     
 }ChargingStatusType;
 
@@ -113,8 +113,6 @@ typedef enum SystemStates
 
 extern SystemStateType SystemState;
 extern ChargingStatusType ChargingStatus;
-extern ChargingStatusType pChargingStatus;
-
 extern unsigned char I2CBusyFlag;
 extern unsigned char LEDTouched;
 extern unsigned char BootTimer;

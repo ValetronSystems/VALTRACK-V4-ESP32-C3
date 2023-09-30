@@ -96,8 +96,8 @@ typedef enum IndicatorLEDs
 
 typedef enum ChargingStatuses
 {
-    CONNECTED = 1,
-    DISCONNECTED = 0,
+    CONNECTED = 0,
+    DISCONNECTED = 1,
     
 }ChargingStatusType;
 

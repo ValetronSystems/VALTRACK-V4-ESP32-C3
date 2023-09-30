@@ -12,7 +12,7 @@
 extern float ADCBatteryVoltage;
 extern unsigned short BatteryADCCount;
 extern int TADCReading;
-extern uint32_t voltage;
+//extern uint32_t voltage;
 void ADCTask(void *arg);
 void AverageADCSamples(void);
 #endif

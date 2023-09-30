@@ -12,9 +12,9 @@
 #define VALETRON_SYSTEMS
 
 
-//#define VALTRACK_V4_VTS
+#define VALTRACK_V4_VTS
 //#define VALTRACK_V4MF
-#define VALTRACK_V4MFW
+//#define VALTRACK_V4MFW
 
 
 //#define V4MF_UM_WB

@@ -51,6 +51,7 @@ LEDType LEDValues = {{0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x0
 LEDStatesType LEDState;
 IndicatorLEDType Indicators;
 ChargingStatusType ChargingStatus = CONNECTED;
+ChargingStatusType pChargingStatus = DISCONNECTED;
 unsigned char BootTimer=0;
 SystemStateType SystemState = State_IdleState;
 unsigned char LEDTouched = 1;
@@ -134,7 +135,7 @@ void UpdateBattery(float BatteryValue)
         
         if( (BatteryValue >= (float)GREEN_RANGE_LOW) && (BatteryValue < (float)GREEN_RANGE_HIGH) )
             {RGBLED.Green = LED_ON;}
-        if( (BatteryValue >= (float)GREEN_F_RANGE_LOW) && (BatteryValue <= (float)GREEN_F_RANGE_HIGH) )
+        if( (BatteryValue >= (float)GREEN_F_RANGE_LOW) )//&& (BatteryValue <= (float)GREEN_F_RANGE_HIGH) )
         { RGBLED.Green = LED_ON;}
       
         

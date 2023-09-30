@@ -195,9 +195,9 @@ extern const char *TAG;
 #define GPIO_INT1     3
 #define GPIO_SOS      9
 #define GPIO_CHG_IN   4
-#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS))
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS) | (1ULL<<GPIO_CHG_IN))  
 
-//#define ENABLE_TPS_CONTROL 
+#define ENABLE_TPS_CONTROL 
 //#define DISABLE_TPS_CONTROL
 
 #define UART_PORT_NUM UART_NUM_1
@@ -393,6 +393,9 @@ typedef enum
     CHARGER_RESET       // 8
 
 }BootReasonType;
+
+#define _countof(a) (sizeof(a)/sizeof(*(a)))
+
 extern char Link[];
 extern char D1,D2,GPSStatus;
 extern char Lat[10],Long[10];

@@ -71,7 +71,7 @@ typedef union EEPARAMS
         unsigned int PingInterval;
         char WorkingMode[5];
         char MotionAlertMode[5];
-        unsigned char MotionThreshold;
+        int MotionThreshold;
         char HTTPURL[150];
         char HTTPKey[100];
         char APNName[20];
@@ -84,8 +84,8 @@ typedef union EEPARAMS
         char MQTTClientID[120];
         char MQTTTopic[30];
         char MQTTProtocolName[10];
-        unsigned char MQTTLVL;
-        unsigned char MQTTFlags;
+        int MQTTLVL;
+        int MQTTFlags;
         unsigned int MQTTKeepAlive;
         char MQTTUsername[30];
         char MQTTPassword[35];
@@ -189,6 +189,14 @@ void EraseEEPROMPackets(void);
 void SaveToEventCache(HWEventDataType *pHardwareEvent);
 void RestoreEventCache(void);
 void ClearEventCache(void);
+
+
+
+void GetParams(ParamsType *pParams);
+void StoreParamString(char *pParamName,char *pParam);
+
+void StoreParams(ParamsType *pParams);
+esp_err_t GetParamString(char *pParamName,char *pParam);
 #endif
 
 // EOF CircularBuffer.h

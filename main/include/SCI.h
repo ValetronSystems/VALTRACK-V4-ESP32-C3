@@ -25,6 +25,8 @@
 //#define SIM800
 
 #define A7672
+//#define SIM7672
+
 
 #ifdef SIM7070
     #define CNMP_13  // 2G
@@ -38,6 +40,8 @@
 
 
 extern const char *TAG;
+
+//#define DISABLE_CHARGING_LOOP
 
 //#define SE868_ENABLED
 #define EXT_ANT_ENABLED
@@ -404,7 +408,7 @@ extern unsigned char f;
 extern float fLat,fLong,pfLat,pfLong,fSpeed,fAltitude; 
 
 extern char GPSTime[],GPSDate[],GPSSpeed[];
-extern unsigned char GPSHours,GPSMinutes,GPSSeconds,GPSDay,GPSMonth,GPSYear;
+extern int GPSHours,GPSMinutes,GPSSeconds,GPSDay,GPSMonth,GPSYear;
 
 extern unsigned char Byte1,Byte2,Byte3,Byte4,Byte5,Byte6;
 

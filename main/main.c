@@ -29,131 +29,370 @@
 #include "esp_event.h"
 #include <nvs_flash.h>
 
-// #include "esp_nimble_hci.h"
-// #include "nimble/nimble_port.h"
-// #include "nimble/nimble_port_freertos.h"
-// #include "host/ble_hs.h"
-// #include "services/gap/ble_svc_gap.h"
-// #include "services/gatt/ble_svc_gatt.h"
+#include "esp_nimble_hci.h"
+#include "nimble/nimble_port.h"
+#include "nimble/nimble_port_freertos.h"
+#include "host/ble_hs.h"
+#include "services/gap/ble_svc_gap.h"
+#include "services/gatt/ble_svc_gatt.h"
 
 
-// //char *TAG = "BLE-Server";
-// uint8_t ble_addr_type;
-// void ble_app_advertise(void);
-// char strb[500];
-// int c=0;
-// // Write data to ESP32 defined as server
-// static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
-// {
-//     char s[100];
-//     c+=ctxt->om->om_len;
-//     sprintf(s,"%.*s", ctxt->om->om_len, ctxt->om->om_data);
-//     strcat(strb,s);
+#define BTBUFF_SIZE 500
+unsigned char BTBuff[BTBUFF_SIZE];
+unsigned short BTBuffIndex = 0;
+
+
+static bool notify_state;
+
+static uint16_t conn_handle;
+
+/* Variable to simulate heart beats */
+static uint8_t heartrate = 90;
+
+
+static TimerHandle_t blehr_tx_timer;
+
+uint16_t HR=9;
+/*****************************************************************************
+* Function Name : ResetBTBuffer                                              *
+*                                                                            *
+* Description   : This function is used to reset the BT  buffer              *
+*                                                                            *
+* Arguments     : None                                                       *
+*                                                                            *
+* Returns       : Nothing                                                    *
+*****************************************************************************/
+void ResetBTBuffer(void)
+{
+    unsigned short i;
+    //USART_ITConfig(USART2,USART_IT_RXNE, DISABLE);
+    for(i = 0; i < BTBUFF_SIZE; i++){ BTBuff[i] = 0; }
+    BTBuffIndex = 0;
+    //ProcessPacket = 0;
+    //USART_ITConfig(USART2,USART_IT_RXNE, ENABLE);
+}
+//extern static PeerToPeerContext_t aPeerToPeerContext;
+void putcharBT(char Data)
+{
     
-//     if(c>=100)
-//         {
-//             printf(strb);c=0;
-//         }
-//     printf("%d",c);
-//     return 0;
-// }
-// int btx=0;
-// // Read data from ESP32 defined as server
-// static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+    char TResponsePacket[2];
+    TResponsePacket[0] = 0x01; 
+    TResponsePacket[1] = Data;            
+    //P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)TResponsePacket);
+    osDelay(100); // Needed for app thread character collection, app cant process all in sequence due to threading.
+    
+//         result = aci_gatt_update_char_value(aPeerToPeerContext.PeerToPeerSvcHdle,
+//                             aPeerToPeerContext.P2PNotifyServerToClientCharHdle,
+//                              0, /* charValOffset */
+//                             2, /* charValueLen */
+//                             (uint8_t *)  pPayload);
+}
+void PrintBT(char *pData)
+{
+    unsigned short i;   
+ 
+    for(i = 0; i < strlen((void*)pData); i++)
+    {
+        putcharBT(pData[i]);
+    }
+        
+}
+
+//char *TAG = "BLE-Server";
+uint8_t ble_addr_type;
+void ble_app_advertise(void);
+int c=0;
+char ParamBeingRead[20];
+//char strb[500];
+
+char tbstr[300];
+char tbstr1[300];
+
+void splitString(char *input, char *delimiter) {
+    char *token = strtok(input, delimiter);
+
+    while (token != NULL) {
+        printf("%s\n", token);
+        token = strtok(NULL, delimiter);
+    }
+}
+// Write data to ESP32 defined as server
+static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char ParamBeingWritten[100];
+    char delimiter[] = " | ";
+    c+=ctxt->om->om_len;
+    memset(tbstr1,0,sizeof(tbstr1));
+    memcpy(tbstr1,ctxt->om->om_data,ctxt->om->om_len);
+   
+    
+  
+    ESP_LOGW(TAG,"Received BT data##########################");
+    //printf("\r\nlen = %d\r\n",ctxt->om->om_len);   
+   
+    char *token = strtok(tbstr1, delimiter);
+
+  
+    sprintf(ParamBeingWritten,"%s", token);
+    
+    token = strtok(NULL, delimiter);
+    //sprintf(ParamBeingWritten,"%s", token);
+    //printf("\nWriting --> %s---%s\n",ParamBeingWritten,token);
+    
+    StoreParamString(ParamBeingWritten,token);
+
+    StoreEEParams();
+    //char s[30]="Trying";//{8,8,8,8,8,8};
+    //snprintf(s,_countof(s),"888888");
+    // ESP_LOGW(TAG,"Sending BT data************************************");
+    // os_mbuf_append(ctxt->om, "Trying", strlen("Trying"));
+    //memset()
+    return 0;
+}
+int btx=0;
+    // Read data from ESP32 defined as server
+static int device_read(uint16_t con_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    char s[30]="Hello";//{8,8,8,8,8,8};
+    //snprintf(s,_countof(s),"888888");
+    ESP_LOGW(TAG,"Sending BT data************************************");
+    GetParams(&Params);
+    os_mbuf_append(ctxt->om, Params.Fields.APNName, strlen(Params.Fields.APNName));
+        // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    // os_mbuf_append(ctxt->om, s, strlen(s));
+    return 0;
+}
+
+//device_notify is named by Ravi from gatt_svr_chr_access_heart_rate
+static int
+device_notify(uint16_t conn_handle, uint16_t attr_handle,
+                               struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    /* Sensor location, set to "Chest" */
+    static uint8_t body_sens_loc = 0x01;
+    uint16_t uuid;
+    int rc;
+
+    uuid = ble_uuid_u16(ctxt->chr->uuid);
+
+    if (uuid == 0xDEAF) {
+        rc = os_mbuf_append(ctxt->om, &body_sens_loc, sizeof(body_sens_loc));
+
+        return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+
+    assert(0);
+    return BLE_ATT_ERR_UNLIKELY;
+}
+
+
+/* This function simulates heart beat and notifies it to the client */
+static void
+//blehr_tx_hrate(TimerHandle_t ev)
+SendParam(char *pValue)
+{
+    // static uint8_t hrm[2];
+    int rc;
+    struct os_mbuf *om;
+
+    if (!notify_state) {
+        //blehr_tx_hrate_stop();
+        //heartrate = 90;
+        return;
+    }
+
+    // hrm[0] = 0x06; /* contact of a sensor */
+    // hrm[1] = heartrate; /* storing dummy data */
+
+    /* Simulation of heart beats */
+    // heartrate++;
+    // if (heartrate == 160) {
+    //     heartrate = 90;
+    // }
+    printf("Notifying\n");
+    // sprintf(tbstr,"%s",heartrate);
+    //om = ble_hs_mbuf_from_flat("hrm", sizeof(hrm));
+    //om = ble_hs_mbuf_from_flat(tbstr, strlen(tbstr));
+    om = ble_hs_mbuf_from_flat(pValue, strlen(pValue));
+    rc = ble_gatts_notify_custom(conn_handle, HR, om);
+
+    assert(rc == 0);
+
+    // blehr_tx_hrate_reset();
+}
+
+// Write data to ESP32 defined as server
+static int device_command(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg)
+{
+    //char s[100];
+    //c+=ctxt->om->om_len;
+    //sprintf(s,"%.*s", ctxt->om->om_len, ctxt->om->om_data);
+    //memcpy(s,ctxt->om->om_data,ctxt->om->om_len);
+    //strcat(strb,s);
+    
+    //if(c>=100)
+    // {
+    //     printf(strb);c=0;
+    // }
+    // printf("%d-",c);
+    //ESP_LOGW(TAG,"Received BT data##########################");
+    //printf("\r\nlen = %d\r\n",ctxt->om->om_len);
+    // for(int i =0;i<ctxt->om->om_len;i++)
+    //     printf("%c,",s[i]);
+    //strcpy(ParamBeingRead,(char*)ctxt->om->om_data);
+    memcpy(ParamBeingRead,(char*)ctxt->om->om_data,ctxt->om->om_len);
+    ParamBeingRead[ctxt->om->om_len] = 0;
+    printf("ParamBeingRead = %s\n",ParamBeingRead);
+    memset(tbstr,0,sizeof(tbstr));
+    GetParamString(ParamBeingRead,tbstr);
+    //SendParam(ParamBeingRead);
+    SendParam(tbstr);
+    //StoreEEParams();
+    //char s[30]="Trying";//{8,8,8,8,8,8};
+    //snprintf(s,_countof(s),"888888");
+    // ESP_LOGW(TAG,"Sending BT data************************************");
+    // os_mbuf_append(ctxt->om, "Trying", strlen("Trying"));
+    
+    return 0;
+}
+// static void
+// blehr_tx_hrate_stop(void)
 // {
-//     char s[30];
-//     snprintf(s,_countof(s),"123456789567890%d",btx++);
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     os_mbuf_append(ctxt->om, s, strlen(s));
-//     return 0;
+//     xTimerStop( blehr_tx_timer, 1000 / portTICK_PERIOD_MS );
 // }
 
-// // Array of pointers to other service definitions
-// // UUID - Universal Unique Identifier
-// static const struct ble_gatt_svc_def gatt_svcs[] = {
-//     {.type = BLE_GATT_SVC_TYPE_PRIMARY,
-//      .uuid = BLE_UUID16_DECLARE(0x180),                 // Define UUID for device type
-//      .characteristics = (struct ble_gatt_chr_def[]){
-//          {.uuid = BLE_UUID16_DECLARE(0xFEF4),           // Define UUID for reading
-//           .flags = BLE_GATT_CHR_F_READ,
-//           .access_cb = device_read},
-//          {.uuid = BLE_UUID16_DECLARE(0xDEAD),           // Define UUID for writing
-//           .flags = BLE_GATT_CHR_F_WRITE,
-//           .access_cb = device_write},
-//          {0}}},
-//     {0}};
-
-// // BLE event handling
-// static int ble_gap_event(struct ble_gap_event *event, void *arg)
+// /* Reset heart rate measurement */
+// static void
+// blehr_tx_hrate_reset(void)
 // {
-//     switch (event->type)
-//     {
-//     // Advertise if connected
-//     case BLE_GAP_EVENT_CONNECT:
-//         ESP_LOGI("GAP", "BLE GAP EVENT CONNECT %s", event->connect.status == 0 ? "OK!" : "FAILED!");
-//         if (event->connect.status != 0)
-//         {
-//             ble_app_advertise();
-//         }
-//         break;
-//     // Advertise again after completion of the event
-//     case BLE_GAP_EVENT_ADV_COMPLETE:
-//         ESP_LOGI("GAP", "BLE GAP EVENT");
-//         ble_app_advertise();
-//         break;
-//     default:
-//         break;
+//     int rc;
+
+//     if (xTimerReset(blehr_tx_timer, 1000 / portTICK_PERIOD_MS ) == pdPASS) {
+//         rc = 0;
+//     } else {
+//         rc = 1;
 //     }
-//     return 0;
+
+//     assert(rc == 0);
+
 // }
 
-// // Define the BLE connection
-// void ble_app_advertise(void)
-// {
-//     // GAP - device name definition
-//     struct ble_hs_adv_fields fields;
-//     const char *device_name;
-//     memset(&fields, 0, sizeof(fields));
-//     device_name = ble_svc_gap_device_name(); // Read the BLE device name
-//     fields.name = (uint8_t *)device_name;
-//     fields.name_len = strlen(device_name);
-//     fields.name_is_complete = 1;
-//     ble_gap_adv_set_fields(&fields);
 
-//     // GAP - device connectivity definition
-//     struct ble_gap_adv_params adv_params;
-//     memset(&adv_params, 0, sizeof(adv_params));
-//     adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // connectable or non-connectable
-//     adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // discoverable or non-discoverable
-//     ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
-// }
+// Array of pointers to other service definitions
+// UUID - Universal Unique Identifier
+static const struct ble_gatt_svc_def gatt_svcs[] = {
+    {.type = BLE_GATT_SVC_TYPE_PRIMARY,
+     .uuid = BLE_UUID16_DECLARE(0x180),                 // Define UUID for device type
+     .characteristics = (struct ble_gatt_chr_def[]){
+         {.uuid = BLE_UUID16_DECLARE(0xFEF4),           // Define UUID for reading
+          .flags = BLE_GATT_CHR_F_WRITE,
+          .access_cb = device_command},
+         {.uuid = BLE_UUID16_DECLARE(0xDEAD),           // Define UUID for writing
+          .flags = BLE_GATT_CHR_F_WRITE,
+          .access_cb = device_write},
+           {.uuid = BLE_UUID16_DECLARE(0xDEAF),           // Define UUID for writing
+           .val_handle = &HR,
+          .flags = BLE_GATT_CHR_F_NOTIFY,
+          .access_cb = device_notify},
+         {0}}},
+    {0}};
 
-// // The application
-// void ble_app_on_sync(void)
-// {
-//     ble_hs_id_infer_auto(0, &ble_addr_type); // Determines the best address type automatically
-//     ble_app_advertise();                     // Define the BLE connection
-// }
+// BLE event handling
+static int ble_gap_event(struct ble_gap_event *event, void *arg)
+{
+    switch (event->type)
+    {
+    // Advertise if connected
+    case BLE_GAP_EVENT_CONNECT:
+        ESP_LOGI("GAP", "BLE GAP EVENT CONNECT %s", event->connect.status == 0 ? "OK!" : "FAILED!");
+        if (event->connect.status != 0)
+        {
+            ble_app_advertise();
+        }
+        conn_handle = event->connect.conn_handle;
+        break;
+    // Advertise again after completion of the event
+    case BLE_GAP_EVENT_ADV_COMPLETE:
+        ESP_LOGI("GAP", "BLE GAP EVENT");
+        ble_app_advertise();
+        break;
+    case BLE_GAP_EVENT_DISCONNECT:
+        ESP_LOGI("GAP", "disconnect; reason=%d\n", event->disconnect.reason);
 
-// // The infinite task
-// void host_task(void *param)
-// {
-//     nimble_port_run(); // This function will return only when nimble_port_stop() is executed
-// }
+        /* Connection terminated; resume advertising */
+        ble_app_advertise();
+        break;
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        ESP_LOGI("GAP", "subscribe event; cur_notify=%d\n value handle; "
+                    "val_handle=%d\n",
+                    event->subscribe.cur_notify, HR);
+        if (event->subscribe.attr_handle == HR) {
+            notify_state = event->subscribe.cur_notify;
+            //blehr_tx_hrate_reset();
+        } else if (event->subscribe.attr_handle != HR) {
+            notify_state = event->subscribe.cur_notify;
+            //blehr_tx_hrate_stop();
+        }
+        ESP_LOGI("GAP", "conn_handle from subscribe=%d", conn_handle);
+        break;
+
+    case BLE_GAP_EVENT_MTU:
+        MODLOG_DFLT(INFO, "mtu update event; conn_handle=%d mtu=%d\n",
+                    event->mtu.conn_handle,
+                    event->mtu.value);
+        break;
+    default:
+        break;
+    }
+    return 0;
+}
+
+// Define the BLE connection
+void ble_app_advertise(void)
+{
+    // GAP - device name definition
+    struct ble_hs_adv_fields fields;
+    const char *device_name;
+    memset(&fields, 0, sizeof(fields));
+    device_name = ble_svc_gap_device_name(); // Read the BLE device name
+    fields.name = (uint8_t *)device_name;
+    fields.name_len = strlen(device_name);
+    fields.name_is_complete = 1;
+    ble_gap_adv_set_fields(&fields);
+
+    // GAP - device connectivity definition
+    struct ble_gap_adv_params adv_params;
+    memset(&adv_params, 0, sizeof(adv_params));
+    adv_params.conn_mode = BLE_GAP_CONN_MODE_UND; // connectable or non-connectable
+    adv_params.disc_mode = BLE_GAP_DISC_MODE_GEN; // discoverable or non-discoverable
+    ble_gap_adv_start(ble_addr_type, NULL, BLE_HS_FOREVER, &adv_params, ble_gap_event, NULL);
+}
+
+// The application
+void ble_app_on_sync(void)
+{
+    ble_hs_id_infer_auto(0, &ble_addr_type); // Determines the best address type automatically
+    ble_app_advertise();                     // Define the BLE connection
+}
+
+// The infinite task
+void host_task(void *param)
+{
+    nimble_port_run(); // This function will return only when nimble_port_stop() is executed
+}
 
 #ifdef VALTRACK_V4_VTS
 const char *TAG = "VALTRACK-V4-VTS";
@@ -549,7 +788,7 @@ void I2C_WrReg(uint8_t Reg, uint8_t Data)
     motion_sensor_register_write_byte(Reg,Data);
 
     
-    osDelay(100);
+    //osDelay(100);
 }
 uint8_t I2C_RdReg(uint8_t Reg)
 {
@@ -558,7 +797,7 @@ uint8_t I2C_RdReg(uint8_t Reg)
     motion_sensor_register_read(Reg,&Data,1);
     
 
-    osDelay(100);
+    //osDelay(100);
     
     return Data;
     
@@ -1066,7 +1305,7 @@ unsigned char CheckNetwork(void)
     if( (pToken1 != NULL) || (pToken2 != NULL))
     {
         ResetBuffer();
-        Print("Network registered/roaming");
+        ESP_LOGI(TAG,"Network registered/roaming");
 
         
         return 0;
@@ -1081,7 +1320,7 @@ unsigned char CheckNetwork(void)
     if( (pToken1 != NULL) || (pToken2 != NULL) || (pToken3 != NULL) || (pToken4 != NULL) )
     {            
         ResetBuffer();
-        Print("Network not registered");
+        ESP_LOGI(TAG,"Network not registered");
         #ifdef DEBUG_PRINT
             DebugPrint("Network Not registered -CheckNetwork\r\n"); 
         #endif
@@ -1323,7 +1562,7 @@ int Year=0,Month=0,Date=0,Hour=0,Minute=0,Sec=0;
                                 break;
                                 case '3':
                                     //bstr[i] = ' ';
-                                    sscanf((void*)bstr, "%hhu",&Params.Fields.MotionThreshold);   
+                                    sscanf((void*)bstr, "%hhu",(char*)&Params.Fields.MotionThreshold);   
 //                                    #ifdef LIS3DH_ENABLED
 //                                    ISRstatus = I2C_RdReg(REG_INT1_SRC);
 //                                    InitAccelerometer();
@@ -1383,10 +1622,10 @@ int Year=0,Month=0,Date=0,Hour=0,Minute=0,Sec=0;
                                     sscanf((void*)bstr, "%s",Params.Fields.MQTTProtocolName);
                                 break;
                                 case 'G':
-                                    sscanf((void*)bstr, "%hhx",&Params.Fields.MQTTLVL);
+                                    sscanf((void*)bstr, "%hhx",(char*)&Params.Fields.MQTTLVL);
                                 break;
                                 case 'H':
-                                    sscanf((void*)bstr, "%hhx",&Params.Fields.MQTTFlags);
+                                    sscanf((void*)bstr, "%hhx",(char*)&Params.Fields.MQTTFlags);
                                 break;
                                 case 'I':
                                     sscanf((void*)bstr, "%u",&Params.Fields.MQTTKeepAlive);
@@ -1530,7 +1769,460 @@ int Year=0,Month=0,Date=0,Hour=0,Minute=0,Sec=0;
     LEDInhibit = 0;
     #endif
 }
+unsigned char ResponsePacket[2] = {0x01,0x00};
+void WriteBTParams(char Byte)
+{
+    char *pToken;
+    char bstr[250];
+    unsigned char i;    
+    
+    if(Byte == '$')
+    {
+        BTBuffIndex = 0;
+    }
+    BTBuff[BTBuffIndex] = Byte;
+    
+    ResponsePacket[0] = 0x01; ResponsePacket[1] = 0x01;        
+    ResponsePacket[0] = '$'; 
+    //HAL_NVIC_DisableIRQ(USART1_IRQn);
+    //HAL_NVIC_DisableIRQ(LPUART1_IRQn);
+    //P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+    //HAL_NVIC_EnableIRQ(LPUART1_IRQn);
+//            
+//            for(unsigned char i = 0;i<15;i++)
+//            {
+//                ResponsePacket[0] = IMEI[i]; 
+//                P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+//            }
+//            ResponsePacket[0] = '#'; 
+//            P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+    
 
+    
+    if(BTBuff[BTBuffIndex] == '#')
+    {
+        pToken = MapForward((char*)BTBuff,BTBUFF_SIZE,(char*)"VALETRON",8);
+        if(pToken != NULL)
+        {
+            
+            //HAL_Delay(2000);
+            memset(bstr,0,sizeof(bstr));
+            i=0;
+            while(pToken[11+i] != '#')
+            {
+                bstr[i] = pToken[11+i];
+                i++;
+                if(i>250)goto DISCARD;
+            }
+            bstr[i] = '\0';
+            //FieldUpdated = pToken[9];
+            switch(pToken[9])
+            {
+                case '0':
+                    Params.Fields.Band[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.Band);
+                break;
+                case '1':
+                    sscanf((void*)bstr, "%s",Params.Fields.WorkingMode);
+                    BTReceiveTimer = 0;
+                break;
+                case '2':
+                    sscanf((void*)bstr, "%s",Params.Fields.MotionAlertMode);
+                break;
+                case '3':
+                    //bstr[i] = ' ';
+                    sscanf((void*)bstr, "%hhu",(char*)&Params.Fields.MotionThreshold);   
+//                            #ifdef LIS3DH_ENABLED
+//                                ISRstatus = I2C_RdReg(REG_INT1_SRC);
+//                                InitAccelerometer();
+//                            #else
+//                                InitAccelerometer_mma84();
+//                            #endif
+                    InitAccelerometer();
+                break;
+                case '4':
+                    sscanf((void*)bstr, "%s",Params.Fields.rxNumber);
+                break;
+                case '5':
+                    Params.Fields.APNName[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.APNName);
+                break;
+                case '6':
+                    Params.Fields.APNUsername[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.APNUsername);
+                break;
+                case '7':
+                    Params.Fields.APNPassword[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.APNPassword);
+                break;
+                case '8':
+                    Params.Fields.HTTPURL[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.HTTPURL);
+                break;
+                case '9':
+                    Params.Fields.HTTPKey[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.HTTPKey);
+                break;
+                case 'A':
+                    //bstr[i] = ' ';
+                    sscanf((void*)bstr, "%u",&Params.Fields.PingInterval);
+                    //Params.Fields.PingInterval = strtoul(bstr);
+                break;
+                case 'B':
+                    Params.Fields.MQTTHost[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTHost);
+                break;
+                case 'C':
+                    Params.Fields.MQTTPort[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTPort);
+                break;
+                case 'D':
+                    Params.Fields.MQTTClientID[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTClientID);
+                break;
+                case 'E':
+                    Params.Fields.MQTTTopic[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTTopic);
+                break;
+                case 'F':
+                    Params.Fields.MQTTProtocolName[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTProtocolName);
+                break;
+                case 'G':
+                    sscanf((void*)bstr, "%hhx",(char*)&Params.Fields.MQTTLVL);
+                break;
+                case 'H':
+                    sscanf((void*)bstr, "%hhx",(char*)&Params.Fields.MQTTFlags);
+                break;
+                case 'I':
+                    sscanf((void*)bstr, "%u",&Params.Fields.MQTTKeepAlive);
+                break;
+                case 'J':
+                    Params.Fields.MQTTUsername[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTUsername);
+                break;
+                case 'K':
+                    Params.Fields.MQTTPassword[0] = '\0';
+                    sscanf((void*)bstr, "%s",Params.Fields.MQTTPassword);
+                break;
+                case 'L':
+                        //     sscanf((void*)bstr,"20%02d-%02d-%02d  %02d:%02d:%02d",
+                        //     &Year,&Month,&Date,&Hour,&Minute,&Sec);
+                        // BDate.Year=Year;
+                        // BDate.Month=Month;
+                        // BDate.Date=Date;
+                        // BTime.Hours=Hour;
+                        // BTime.Minutes=Minute;
+                        // BTime.Seconds=Sec;
+                        // HAL_RTC_SetDate(&hrtc, &BDate, RTC_FORMAT_BIN);
+                        // HAL_RTC_SetTime(&hrtc, &BTime, RTC_FORMAT_BIN);
+                        break;
+                    case 'Z':
+                    return;
+                break;
+                
+            }
+            StoreEEParams();
+            GetEEParams();
+            
+            
+            // HAL_RTC_GetTime(&hrtc, &R, RTC_FORMAT_BIN);
+            // HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+            
+            
+            
+            putcharBT('$');
+            
+            switch(pToken[9])
+            {
+                case '0':
+                    sprintf((void*)bstr, "Band: %s",Params.Fields.Band);
+                    PrintBT(bstr);
+                break;
+                case '1':
+                    sprintf((void*)bstr, "WM: %s",Params.Fields.WorkingMode);
+                    PrintBT(bstr);
+                break;
+                case '2':
+                    sprintf((void*)bstr, "MAlert: %s",Params.Fields.MotionAlertMode);
+                    PrintBT(bstr);
+                break;
+                case '3':
+                    sprintf((void*)bstr, "MThresh: %hhu",Params.Fields.MotionThreshold);   
+                    PrintBT(bstr);
+                    
+                break;
+                case '4':
+                    sprintf((void*)bstr, "Contact: %s",Params.Fields.rxNumber);
+                    PrintBT(bstr);
+                break;
+                case '5':
+                    sprintf((void*)bstr, "APN: %s",Params.Fields.APNName);
+                    PrintBT(bstr);
+                break;
+                case '6':
+                    sprintf((void*)bstr, "APNUser: %s",Params.Fields.APNUsername);
+                    PrintBT(bstr);
+                break;
+                case '7':
+                    sprintf((void*)bstr, "APNPass: %s",Params.Fields.APNPassword);
+                    PrintBT(bstr);
+                break;
+                case '8':
+                    sprintf((void*)bstr, "HTTPURL: %s",Params.Fields.HTTPURL);
+                    PrintBT(bstr);
+                break;
+                case '9':
+                    sprintf((void*)bstr, "HTTPKey: %s",Params.Fields.HTTPKey);
+                    PrintBT(bstr);
+                break;
+                case 'A':
+                    sprintf((void*)bstr, "Interval: %u",Params.Fields.PingInterval);
+                    PrintBT(bstr);
+                break;
+                case 'B':
+                    sprintf((void*)bstr, "MHost: %s",Params.Fields.MQTTHost);
+                    PrintBT(bstr);
+                break;
+                case 'C':
+                    sprintf((void*)bstr, "MPort: %s",Params.Fields.MQTTPort);
+                    PrintBT(bstr);
+                break;
+                case 'D':
+                    sprintf((void*)bstr, "MCID: %s",Params.Fields.MQTTClientID);
+                    PrintBT(bstr);
+                break;
+                case 'E':
+                    sprintf((void*)bstr, "MTopic: %s",Params.Fields.MQTTTopic);
+                    PrintBT(bstr);
+                break;
+                case 'F':
+                    sprintf((void*)bstr, "MProt: %s",Params.Fields.MQTTProtocolName);
+                    PrintBT(bstr);
+                break;
+                case 'G':
+                    sprintf((void*)bstr, "MLVL: 0x%hhX",Params.Fields.MQTTLVL);
+                    PrintBT(bstr);
+                break;
+                case 'H':
+                    sprintf((void*)bstr, "MFlag: 0x%hhX",Params.Fields.MQTTFlags);
+                    PrintBT(bstr);
+                break;
+                case 'I':
+                    sprintf((void*)bstr, "MKAlive: %u",Params.Fields.MQTTKeepAlive);
+                    PrintBT(bstr);
+                break;
+                case 'J':
+                    sprintf((void*)bstr, "MUser: %s",Params.Fields.MQTTUsername);
+                    PrintBT(bstr);
+                break;
+                case 'K':
+                    sprintf((void*)bstr, "MPass: %s",Params.Fields.MQTTPassword);
+                    PrintBT(bstr);
+                break;
+                case 'L':
+                        sprintf((void*)bstr,"Time: 20%02d-%02d-%02d  %02d:%02d:%02d",sDate.Year,sDate.Month,sDate.Date,R.Hours,R.Minutes,R.Seconds);
+                        PrintBT(bstr);
+                        break;
+                    case 'Z':
+                    return;
+                break;
+                
+            }
+                    
+            putcharBT('#');
+            putcharBT('\n');
+        }
+        
+        
+    }
+        
+    BTBuffIndex++;
+    if(BTBuffIndex >= BTBUFF_SIZE-1)
+        BTBuffIndex = 0;
+    
+    return;
+    //DisconnectDevice();
+    //UpdateLED3(RED_COLOR);
+    //SystemState = State_IdleState;
+DISCARD: ResetBTBuffer();
+        
+        
+    
+}
+void ReadBTParams(char Byte)
+{
+    char *pToken;
+    char bstr[250];
+    unsigned char i;
+
+    if(Byte == '$')
+    {
+        BTBuffIndex = 0;
+    }
+    BTBuff[BTBuffIndex] = Byte;
+    
+    ResponsePacket[0] = 0x02; ResponsePacket[1] = 0x01;        
+    ResponsePacket[0] = '$'; 
+    //HAL_NVIC_DisableIRQ(USART1_IRQn);
+    //HAL_NVIC_DisableIRQ(LPUART1_IRQn);
+    //P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+    //HAL_NVIC_EnableIRQ(LPUART1_IRQn);
+//            
+//            for(unsigned char i = 0;i<15;i++)
+//            {
+//                ResponsePacket[0] = IMEI[i]; 
+//                P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+//            }
+//            ResponsePacket[0] = '#'; 
+//            P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)ResponsePacket);
+    
+
+    
+    if(BTBuff[BTBuffIndex] == '#')
+    {
+        pToken = MapForward((char*)BTBuff,BTBUFF_SIZE,(char*)"VALETRON",8);
+        if(pToken != NULL)
+        {
+            
+            //HAL_Delay(2000);
+            memset(bstr,0,sizeof(bstr));
+            i=0;
+            while(pToken[11+i] != '#')
+            {
+                bstr[i] = pToken[11+i];
+                i++;
+                if(i>250)goto DISCARD2;
+            }
+            bstr[i] = '\0';
+            //FieldUpdated = pToken[9];
+            
+            
+            GetEEParams();
+            
+            
+            
+            
+            
+            putcharBT('$');
+            
+            switch(pToken[9])
+            {
+                case '0':
+                    sprintf((void*)bstr, "Band: %s",Params.Fields.Band);
+                    PrintBT(bstr);
+                break;
+                case '1':
+                    sprintf((void*)bstr, "WM: %s",Params.Fields.WorkingMode);
+                    PrintBT(bstr);
+                break;
+                case '2':
+                    sprintf((void*)bstr, "MAlert: %s",Params.Fields.MotionAlertMode);
+                    PrintBT(bstr);
+                break;
+                case '3':
+                    sprintf((void*)bstr, "MThresh: %hhu",Params.Fields.MotionThreshold);   
+                    PrintBT(bstr);
+                    
+                break;
+                case '4':
+                    sprintf((void*)bstr, "Contact: %s",Params.Fields.rxNumber);
+                    PrintBT(bstr);
+                break;
+                case '5':
+                    sprintf((void*)bstr, "APN: %s",Params.Fields.APNName);
+                    PrintBT(bstr);
+                break;
+                case '6':
+                    sprintf((void*)bstr, "APNUser: %s",Params.Fields.APNUsername);
+                    PrintBT(bstr);
+                break;
+                case '7':
+                    sprintf((void*)bstr, "APNPass: %s",Params.Fields.APNPassword);
+                    PrintBT(bstr);
+                break;
+                case '8':
+                    sprintf((void*)bstr, "HTTPURL: %s",Params.Fields.HTTPURL);
+                    PrintBT(bstr);
+                break;
+                case '9':
+                    sprintf((void*)bstr, "HTTPKey: %s",Params.Fields.HTTPKey);
+                    PrintBT(bstr);
+                break;
+                case 'A':
+                    sprintf((void*)bstr, "Interval: %u",Params.Fields.PingInterval);
+                    PrintBT(bstr);
+                break;
+                case 'B':
+                    sprintf((void*)bstr, "MHost: %s",Params.Fields.MQTTHost);
+                    PrintBT(bstr);
+                break;
+                case 'C':
+                    sprintf((void*)bstr, "MPort: %s",Params.Fields.MQTTPort);
+                    PrintBT(bstr);
+                break;
+                case 'D':
+                    sprintf((void*)bstr, "MCID: %s",Params.Fields.MQTTClientID);
+                    PrintBT(bstr);
+                break;
+                case 'E':
+                    sprintf((void*)bstr, "MTopic: %s",Params.Fields.MQTTTopic);
+                    PrintBT(bstr);
+                break;
+                case 'F':
+                    sprintf((void*)bstr, "MProt: %s",Params.Fields.MQTTProtocolName);
+                    PrintBT(bstr);
+                break;
+                case 'G':
+                    sprintf((void*)bstr, "MLVL: 0x%hhX",Params.Fields.MQTTLVL);
+                    PrintBT(bstr);
+                break;
+                case 'H':
+                    sprintf((void*)bstr, "MFlag: 0x%hhX",Params.Fields.MQTTFlags);
+                    PrintBT(bstr);
+                break;
+                case 'I':
+                    sprintf((void*)bstr, "MKAlive: %u",Params.Fields.MQTTKeepAlive);
+                    PrintBT(bstr);
+                break;
+                case 'J':
+                    sprintf((void*)bstr, "MUser: %s",Params.Fields.MQTTUsername);
+                    PrintBT(bstr);
+                break;
+                case 'K':
+                    sprintf((void*)bstr, "MPass: %s",Params.Fields.MQTTPassword);
+                    PrintBT(bstr);
+                break;
+                case 'L':
+                        sprintf((void*)bstr,"Time: 20%02d-%02d-%02d  %02d:%02d:%02d",sDate.Year,sDate.Month,sDate.Date,R.Hours,R.Minutes,R.Seconds);
+                        PrintBT(bstr);
+                        break;
+                    case 'Z':
+                    return;
+                break;
+                
+            }
+                    
+            putcharBT('#');
+            putcharBT('\n');
+        }
+        
+        
+    }
+        
+        BTBuffIndex++;
+        if(BTBuffIndex >= BTBUFF_SIZE-1)
+            BTBuffIndex = 0;
+        
+        return;
+        //DisconnectDevice();
+        //UpdateLED3(RED_COLOR);
+        //SystemState = State_IdleState;
+DISCARD2: ResetBTBuffer();
+        
+        
+    
+}
 
 
 unsigned char FirstBoot = 0;
@@ -1568,7 +2260,7 @@ unsigned char InitGSM(void)
     gpio_set_level(GPIO_PWRKEY,0);
     //GSM_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
 
-
+    
     SKIP_RESET:
     FirstBoot = 1;
     
@@ -1582,8 +2274,11 @@ unsigned char InitGSM(void)
         {       break; }
         if((MapForward(Buff2,BUFF2_SIZE,(char*)"ATREADY",7) != NULL) || (LoopTimeout1>10))
         {       break; }
+        if((MapForward(Buff2,BUFF2_SIZE,(char*)"QCRDY",5) != NULL) || (LoopTimeout1>10))
+        {       break; }
         if((MapForward(Buff2,BUFF2_SIZE,(char*)"CPIN: READY",11) != NULL) || (LoopTimeout1>10))
         {       break; }
+        osDelay(1);
         
     }
 
@@ -1593,7 +2288,7 @@ unsigned char InitGSM(void)
         return 3;
     //osDelay(1000);
     LoopTimeout2 = 0;
-    while(SendATCommand("AAAT\r\n","OK","ERROR",3)==3)//Print("AAAT\r\n");
+    while(SendATCommand("AT\r\n","OK","ERROR",3)==3)//Print("AAAT\r\n");
     {
         if(LoopTimeout2 > 20)
             goto RESTART;
@@ -1610,7 +2305,10 @@ unsigned char InitGSM(void)
  
     
     
-    
+    ESP_LOGI(TAG," Buff2Index = %d",Buff2Index);
+
+
+
     if(Buff2Index == 0) 
     {
         #ifdef DEBUG_PRINT
@@ -1731,7 +2429,7 @@ unsigned char InitGSM(void)
         }
         IMSI[15] = '\0';
     }
- 
+    
     // SendATCommand("AT+COPS=?\r\n","OK","ERROR",500);    
     
     // #ifdef SIM7070
@@ -1772,6 +2470,24 @@ unsigned char InitGSM(void)
             #endif       
             #if defined(A7672)
                 SendATCommand("AT+CGNSSPWR=1\r\n","READY","ERROR",60);
+                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
+            #endif
+            #if defined(SIM7672)
+                
+                SendATCommand("AT+CGNSSPWR=1\r\n","OK","ERROR",60);
+                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
+                SendATCommand("AT+CGNSSPORTSWITCH=1,1\r\n","OK","ERROR",5);
+                SendATCommand("AT+CGNSSTST=1\r\n","OK","ERROR",30);
+                SendATCommand("AT+CGPSCOLD\r\n","OK","ERROR",30);
+                //SendATCommand("AT+CGNSSFTM=1\r\n","OK","ERROR",30);
+                //SendATCommand("AT+CGNSSINFO\r\n","OK","ERROR",30);
+                SendATCommand("AT+CGNSSIPR?\r\n","OK","ERROR",30);
+                SendATCommand("AT+SIMCOMATI\r\n","OK","ERROR",30);
+                 osDelay(5000);
+                 SendATCommand("AT+BT\r\n","OK","ERROR",30);
+                osDelay(5000);
+                
+                
             #endif
             // SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
         
@@ -1808,7 +2524,7 @@ unsigned char InitGSM(void)
         DeleteAllSMS();        
         DDelay();
     }
-
+    
     
     // CheckNetworkLocation();
    
@@ -2033,6 +2749,7 @@ void StartTimerTask(void *argument)
         //GSMResetTimer++;
         LPUARTTimer++;
         ConnectivityTimer++;
+        
         #ifdef TAMPER_DETECT_MODE 
             if(SOSActivated == 1)
             {
@@ -2876,7 +3593,8 @@ char XHTTP_Request(char *pFilename, unsigned char pingtype)
     ////Print4("Resending\r\n");
     ////IWDG_ReloadCounter();
     ResetBuffer();
-    Print( "AAAAAAAAAAAAAT\r\n");    
+    //Print( "AAAAAAAAAAAAAT\r\n");
+    Print( "AT\r\n");    
     LoopTimeout1 = 0;
     while(1)
     {
@@ -3867,7 +4585,8 @@ void DeepSleep (void)
             InitRTCAlarm();
             SleepModeEnabled = 1;
             DisableMainPower();
-            // nimble_port_stop(); // BLE
+            //nimble_port_stop(); // BLE Causes crash
+            
             /////////////////////////////////////
             /* Initialize selected GPIO as RTC IO, enable output, disable pullup and pulldown, enable hold*/
             gpio_hold_en(GPIO_TPS_ENABLE);
@@ -4140,17 +4859,24 @@ ESP_LOGI(TAG,"Entered main task");
     // ESP_LOGI(TAG,"Reached Enable GSM");
     #ifndef VALTRACK_V4_VTS
     ChargingStatus = (ChargingStatusType)gpio_get_level(GPIO_CHARGER_PIN);
-
+    
     if( (ChargingStatus == CONNECTED) || (ADCBatteryVoltage < 3.0))
     {
         goto CHECK_CHARGER_STATE;
     }
     #endif
-    
+
     EnableGSM();
+    osDelay(1000);// For SIM7672
     gpio_set_level(GPIO_PWRKEY,1);
     osDelay(1000);
     gpio_set_level(GPIO_PWRKEY,0);
+    //osDelay(5000);
+    //while(1){SendATCommand("AT\r\n","OK","ERROR",5);osDelay(1000);};
+    // while(1)
+    // {
+    //     osDelay(1);
+    // }
     // ESP_LOGI(TAG,"After Enable GSM");
     //while(1){LPUARTTimer=0;}
     // STANDBY DELAY
@@ -4175,71 +4901,18 @@ ESP_LOGI(TAG,"Entered main task");
     //__HAL_RCC_CLEAR_RESET_FLAGS();
  
     osDelay(300);
-    //
-    //    HAL_I2C_DeInit(&hi2c1);
-    //    MX_I2C1_Init();
-        //InitAccelerometer_mma84();
-    //    LEDInhibit=0;
-    //PCA_Address = 0xC0;
     
-        //while(1)
-        {
-            
-     
-            //if(WritePCA==1)
-            {
-                
-                
-                
-               //InitAccelerometer();
-                /*for(i=0x00;i<10;i++)
-                {
-                   //PCA_I2C_WrReg(i,PCARegistersW.Bytes[i]);
-                   PCA_I2C_WrReg(i,Regs[i]);
-                }
-                //HAL_I2C_Mem_Write(&hi2c1, PCA_Address, 0x00, I2C_MEMADD_SIZE_8BIT,(uint8_t*) &PCARegistersW.Bytes[0], 10, 10000);
-                osDelay(100);
-                 //PCA_Address++;
-                if(PCA_Address >255)PCA_Address=0;
-                */
-                /*if (HAL_ADC_Start(&hadc) != HAL_OK)
-                {
-                    Error_Handler();
-                }*/
-                //HAL_ADC_PollForConversion(&hadc, 2000);
-                //AdcValue=HAL_ADC_GetValue(&hadc);
-                //ADCBatteryVoltage = (((float)BatteryADCCount*2*3)/4096);
-                //osDelay(2000);
-                
-                //UpdateBattery(ADCBatteryVoltage);
-                //WritePCA=0;
-                //HAL_ADC_Start_DMA(&hadc, (void*)&BatteryADCCount , 1);
-             }
-            
-         }
-    
-    
-    
-   
-    
-
-//    MX_ADC_Init();
-    //MX_I2C1_Init();
-
-    // TBD
-    // MX_RTC_Init();
-    // HAL_RTC_GetTime(&hrtc, &R, RTC_FORMAT_BIN);
-    // HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-      
-
 
     ReadEEIndexes();
     GetEEParams();
     // Init Default values
-    if( (Params.Fields.Band[0] == 0xFF) || (LoadDefaultParams == 1) )
+    //if( (Params.Fields.Band[0] == 0xFF) || (LoadDefaultParams == 1) )
+    //LoadDefaultParams = 1;
+    if( (GetParamString("APNName",cmdstr) != ESP_OK) || (LoadDefaultParams == 1) )
     {
-        memcpy(Params.Bytes,DefaultParams.Bytes,sizeof(Params));
-        StoreEEParams();
+        //memcpy(Params.Bytes,DefaultParams.Bytes,sizeof(Params));
+        //StoreEEParams();
+        StoreParams(&DefaultParams);
         LoadDefaultParams = 0;
     }
     if(ForceEraseEEPROM == 1)
@@ -4997,7 +5670,7 @@ ESP_LOGI(TAG,"Entered main task");
                         }
                         bstr[i] = '\0';
                     }   
-                    sscanf((void*)bstr, "%hhu",&Params.Fields.MotionThreshold);   
+                    sscanf((void*)bstr, "%hhu",(char*)&Params.Fields.MotionThreshold);   
                     StoreEEParams();
                     	
                     Print("AT+CSCLK=0\r\n");
@@ -5338,16 +6011,43 @@ ESP_LOGI(TAG,"Entered main task");
 //  }
   /* USER CODE END 5 */ 
 }
-
+void InitFlash(void)
+{
+    esp_err_t err;
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+}
 void app_main(void)
 {
+    
+    
     // vTaskDelay(5000 / portTICK_PERIOD_MS);    
     SystemInit();
     ///
     // EnableGSM();// For LED
     // MakeAllLED(PURPLE);
     // WriteLEDStatus();
+    InitFlash();
+    // /* name, period/time,  auto reload, timer ID, callback */
+    // blehr_tx_timer = xTimerCreate("blehr_tx_timer", pdMS_TO_TICKS(1000), pdTRUE, (void *)0, blehr_tx_hrate);
+    //StoreEEParams();
+    GetEEParams();
+
     
+    //esp_nimble_hci_and_controller_init();      // 2 - Initialize ESP controller
+    nimble_port_init();                        // 3 - Initialize the host stack
+    ble_svc_gap_device_name_set(TAG); // 4 - Initialize NimBLE configuration - server name
+    ble_svc_gap_init();                        // 4 - Initialize NimBLE configuration - gap service
+    ble_svc_gatt_init();                       // 4 - Initialize NimBLE configuration - gatt service
+    ble_gatts_count_cfg(gatt_svcs);            // 4 - Initialize NimBLE configuration - config gatt services
+    ble_gatts_add_svcs(gatt_svcs);             // 4 - Initialize NimBLE configuration - queues gatt services.
+    ble_hs_cfg.sync_cb = ble_app_on_sync;      // 5 - Initialize application
+    nimble_port_freertos_init(host_task);      // 6 - Run the thread
     //
     SleepWakeupReason();
     // osDelay(5000);
@@ -5357,6 +6057,7 @@ void app_main(void)
     // esp_bt_controller_disable();
     // esp_wifi_stop();
     // EnterDeepSleep();
+    //ESP_LOGI(TAG,"Before tasks");
     xTaskCreate(ADCTask, "ADCTask", 2048, NULL, 10, NULL);
     xTaskCreate(StartTimerTask, "StartTimerTask", 4096, NULL, 10, NULL);   
     xTaskCreate(StartMainTask, "StartMainTask", 8192, NULL, 10, NULL); //TIMER_TASK_STACK_SIZE

@@ -94,12 +94,21 @@ typedef enum IndicatorLEDs
     
 }IndicatorLEDType;
 
+#ifdef DISABLE_CHARGING_LOOP
+typedef enum ChargingStatuses
+{
+    CONNECTED = 1,
+    DISCONNECTED = 0,
+    
+}ChargingStatusType;
+#else
 typedef enum ChargingStatuses
 {
     CONNECTED = 0,
     DISCONNECTED = 1,
     
 }ChargingStatusType;
+#endif 
 
 typedef enum SystemStates
 {

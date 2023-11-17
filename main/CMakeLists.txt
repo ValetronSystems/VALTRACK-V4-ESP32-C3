@@ -5,4 +5,4 @@ idf_component_register(SRCS "main.c" "led_strip_rmt_ws2812.c" "FrontPanel.c" "SC
 
                     )
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-error=unused-but-set-variable )
-target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-but-set-variable -Wno-unused-variable)
+target_compile_options(${COMPONENT_LIB} PRIVATE -Wno-unused-but-set-variable -Wno-unused-variable -Wno-sizeof-pointer-memaccess)

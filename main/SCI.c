@@ -43,7 +43,7 @@ unsigned char CommaCount;
 
 
 char GPSTime[20],GPSDate[20],GPSSpeed[20];
-unsigned char GPSHours,GPSMinutes,GPSSeconds,GPSDay,GPSMonth,GPSYear;
+int GPSHours,GPSMinutes,GPSSeconds,GPSDay,GPSMonth,GPSYear;
 
 
 extern unsigned short LPUARTTimer;
@@ -494,7 +494,7 @@ char * MapForward
 {
     unsigned short DataIndex;
     unsigned short MapPointIndex;
-
+    
     for(DataIndex = 0; DataIndex < MapDataLength - MapPointsLength + 1; DataIndex++)
     {
         
@@ -689,7 +689,12 @@ void HandleGPSINFData(unsigned char Byte)
                         sscanf( (void*)Altitude, "%f", &fAltitude);
                         sscanf( (void*)Speed, "%f", &fSpeed);
                         sscanf( (void*)GPSDate, "%2d%2d%2d", (int*)&GPSDay,(int*)&GPSMonth,(int*)&GPSYear);
+                        
+                        
                         sscanf( (void*)GPSTime, "%2d%2d%2d", (int*)&GPSHours,(int*)&GPSMinutes,(int*)&GPSSeconds);
+                        // printf("%s,%d,%d,%d\n",GPSDate,GPSDay,GPSMonth,GPSYear);
+                        // printf("%s,%d,%d,%d\n",GPSTime,GPSHours,GPSMinutes,GPSSeconds);
+
                         if(D1 == 'S')fLat *= -1;
                         if(D2 == 'W')fLong *= -1;
                         fLat = GPRMC2Degrees(fLat);

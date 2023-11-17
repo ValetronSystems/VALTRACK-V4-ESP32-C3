@@ -11,6 +11,13 @@
 #include <stdio.h>
 #include "SCI.h"
 #include "at24c.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "esp_log.h"
+#include "esp_event.h"
+#include <nvs_flash.h>
+#include "esp_err.h"
 #include "CircularBuffer.h"
 #define EVENTS_INDEX_MASK 0x7FF//0x1F  // Note must be (power of 2) minus 1 0x3E=62,0x7C=124,0xF8=248,0x1F0=496
 #define EVENTS_INDEX_MASK_2 0x1F  // Note must be (power of 2) minus 1
@@ -363,46 +370,168 @@ ParamsType *pEEParams;
 // GPS Log
 //
 
+esp_err_t GetParamString(char *pParamName,char *pParam)
+{
+    //char buffer[1000];
+    //char test_string[] = "Here is a load of text to test the NVS string storage. ";
+    size_t required_size=0;
+    esp_err_t err;
 
+    //ESP_ERROR_CHECK( err );
+    nvs_handle_t my_handle;
+    err = nvs_open("Params", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    } 
+    else {
+       // printf("Done\n");
+    
+        // Read
+        memset(pParam,0,sizeof(pParam));
+        err = nvs_get_str(my_handle, pParamName, NULL, &required_size );
+        err = nvs_get_str(my_handle, pParamName, pParam, &required_size);
+        switch (err) {
+        case ESP_OK:
+            //printf("Done\n\n");
+            printf("Get Done - %s = %s\n", pParamName,pParam);
+            break;
+        case ESP_ERR_NVS_NOT_FOUND:
+            printf("The value %s is not initialized yet!\n", pParamName);
+            //memset(buffer, 0, sizeof(buffer));
+            break;
+        default :
+            printf("%s - Error (%s) reading!\n",pParamName, esp_err_to_name(err));
+        }
+        // Write
+        
+        // //strncat(buffer, (const char*)test_string, sizeof(test_string));
+        // err = nvs_set_str(my_handle, "buffer", (const char*)buffer);
+        // printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
+        
+        // err = nvs_commit(my_handle);
+        // printf((err != ESP_OK) ? "Failed!\n" : "Done\n");
 
+        // Close
+        nvs_close(my_handle);
+        
+    }
+    
+   return err;
+    
+}
 void GetEEParams(void)
 {
-    // unsigned short j;
-    // sEEAddress  = 0xA0; // Store in first page
-    // for(j=0;j<EE_PARAMS_LENGTH;j++)
-    // {
-    //     ReadRom(EEPROM_t * dev, uint16_t data_addr, uint8_t * data)
-    //     HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR+j, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[j], 1, 10000);
-    //     //osDelay(5);
-    // }
+    GetParams(&Params);
+}
+void GetParams(ParamsType *pParams)
+{
     
-    // //HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR, I2C_MEMADD_SIZE_16BIT,(uint8_t*) Params.Bytes, sizeof(ParamsType), 10000);
-    // //osDelay(100);
-    // /*HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[0], 200, 10000);
-    // osDelay(100);
-    // HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR+200, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[200], 200, 10000);
-    // osDelay(100);*/
+    char str[20];
+    
+    GetParamString("PingInterval",str);//unsigned int PingInterval;
+    sscanf(str,"%d",&pParams->Fields.PingInterval);
+
+    GetParamString("WorkingMode",pParams->Fields.WorkingMode);    // char WorkingMode[5];
+    GetParamString("MotionAlertMode",pParams->Fields.MotionAlertMode);    // char MotionAlertMode[5];    
+
+    GetParamString("MotionThreshold",str);    // unsigned char MotionThreshold;
+    sscanf(str,"%d",&pParams->Fields.MotionThreshold);
+
+    GetParamString("HTTPURL",pParams->Fields.HTTPURL);    // char HTTPURL[150];
+    GetParamString("HTTPKey",pParams->Fields.HTTPKey);    // char HTTPKey[100];
+    GetParamString("APNName",pParams->Fields.APNName);    // char APNName[20];
+    GetParamString("APNUsername",pParams->Fields.APNUsername);    // char APNUsername[20];
+    GetParamString("APNPassword",pParams->Fields.APNPassword);    // char APNPassword[20];
+    GetParamString("Band",pParams->Fields.Band);    // char Band[30];
+    GetParamString("rxNumber",pParams->Fields.rxNumber);    // char rxNumber[16];
+    GetParamString("MQTTHost",pParams->Fields.MQTTHost);    // char MQTTHost[30];
+    GetParamString("MQTTPort",pParams->Fields.MQTTPort);    // char MQTTPort[10];
+    GetParamString("MQTTClientID",pParams->Fields.MQTTClientID);    // char MQTTClientID[120];
+    GetParamString("MQTTTopic",pParams->Fields.MQTTTopic);    // char MQTTTopic[30];
+    GetParamString("MQTTProtName",pParams->Fields.MQTTProtocolName);    // char MQTTProtocolName[10];
+    
+    GetParamString("MQTTLVL",str);    // unsigned char MQTTLVL;
+    sscanf(str,"%d",&pParams->Fields.MQTTLVL);
+
+    
+    GetParamString("MQTTFlags",str);    // unsigned char MQTTFlags;
+    sscanf(str,"%d",&pParams->Fields.MQTTFlags);
+
+    
+    GetParamString("MQTTKeepAlive",str);    // unsigned int MQTTKeepAlive;
+    sscanf(str,"%d",&pParams->Fields.MQTTKeepAlive);
+
+    GetParamString("MQTTUsername",pParams->Fields.MQTTUsername);    // char MQTTUsername[30];
+    GetParamString("MQTTPassword",pParams->Fields.MQTTPassword);    // char MQTTPassword[35];
+}
+
+void StoreParamString(char *pParamName,char *pParam)
+{
+    //char buffer[1000];
+    //char test_string[] = "Here is a load of text to test the NVS string storage. ";
+    size_t required_size=0;
+    esp_err_t err,err1;
+
+    //ESP_ERROR_CHECK( err );
+    nvs_handle_t my_handle;
+    err = nvs_open("Params", NVS_READWRITE, &my_handle);
+    if (err != ESP_OK) {
+        printf("Error (%s) opening NVS handle!\n", esp_err_to_name(err));
+    } 
+    else {
+        
+        //strncat(buffer, (const char*)test_string, sizeof(test_string));
+        err = nvs_set_str(my_handle, pParamName, (const char*)pParam);
+        //printf(((err != ESP_OK) ? " Set %s-Failed!\n" : "Set %s-Done\n"),pParamName);
+        
+        err1 = nvs_commit(my_handle);
+        //printf(((err != ESP_OK) ? "Commit %s-Failed!\n" : "Commit %s-Done\n"),pParamName);
+        printf(((err != ESP_OK || (err1 != ESP_OK)) ? " Set Failed - %s = %s!\n" : "Set Done - %s = %s\n"),pParamName,pParam);
+        // Close
+        nvs_close(my_handle);
+
+    }
+    
+}
+
+void StoreParams(ParamsType *pParams)
+{
+    char str[20];
+    sprintf(str,"%d",pParams->Fields.PingInterval);
+    StoreParamString("PingInterval",str);//unsigned int PingInterval;
+    StoreParamString("WorkingMode",pParams->Fields.WorkingMode);    // char WorkingMode[5];
+    StoreParamString("MotionAlertMode",pParams->Fields.MotionAlertMode);    // char MotionAlertMode[5];
+    sprintf(str,"%d",pParams->Fields.MotionThreshold);
+    StoreParamString("MotionThreshold",str);    // unsigned char MotionThreshold;
+    StoreParamString("HTTPURL",pParams->Fields.HTTPURL);    // char HTTPURL[150];
+    StoreParamString("HTTPKey",pParams->Fields.HTTPKey);    // char HTTPKey[100];
+    StoreParamString("APNName",pParams->Fields.APNName);    // char APNName[20];
+    StoreParamString("APNUsername",pParams->Fields.APNUsername);    // char APNUsername[20];
+    StoreParamString("APNPassword",pParams->Fields.APNPassword);    // char APNPassword[20];
+    StoreParamString("Band",pParams->Fields.Band);    // char Band[30];
+    StoreParamString("rxNumber",pParams->Fields.rxNumber);    // char rxNumber[16];
+    StoreParamString("MQTTHost",pParams->Fields.MQTTHost);    // char MQTTHost[30];
+    StoreParamString("MQTTPort",pParams->Fields.MQTTPort);    // char MQTTPort[10];
+    StoreParamString("MQTTClientID",pParams->Fields.MQTTClientID);    // char MQTTClientID[120];
+    StoreParamString("MQTTTopic",pParams->Fields.MQTTTopic);    // char MQTTTopic[30];
+    StoreParamString("MQTTProtName",pParams->Fields.MQTTProtocolName);    // char MQTTProtocolName[10]; max length 15 so MQTTProtName
+
+    sprintf(str,"%d",pParams->Fields.MQTTLVL);
+    StoreParamString("MQTTLVL",str);    // unsigned char MQTTLVL;
+
+    sprintf(str,"%d",pParams->Fields.MQTTFlags);
+    StoreParamString("MQTTFlags",str);    // unsigned char MQTTFlags;
+
+    sprintf(str,"%d",pParams->Fields.MQTTKeepAlive);
+    StoreParamString("MQTTKeepAlive",str);    // unsigned int MQTTKeepAlive;
+    
+    StoreParamString("MQTTUsername",pParams->Fields.MQTTUsername);    // char MQTTUsername[30];
+    StoreParamString("MQTTPassword",pParams->Fields.MQTTPassword);    // char MQTTPassword[35];
     
 }
 void StoreEEParams(void)
 {
-    // unsigned short j;
-    // sEEAddress  = 0xA0; // Store in first page
-    // for(j=0;j<EE_PARAMS_LENGTH;j++)
-    // {
-    //     HAL_I2C_Mem_Write(&hi2c1, sEEAddress, EE_PARAMS_ADDR+j, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[j], 1, 10000);
-    //     osDelay(5);
-    // }
-   
-    // /*osDelay(100);
-    // HAL_I2C_Mem_Write(&hi2c1, sEEAddress, EE_PARAMS_ADDR+200, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[200], 200, 10000);
-    // osDelay(100);*/
-    
-    // GetEEParams();
-    // /*HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[0], 200, 10000);
-    // osDelay(100);
-    // HAL_I2C_Mem_Read(&hi2c1, sEEAddress, EE_PARAMS_ADDR+200, I2C_MEMADD_SIZE_16BIT,(uint8_t*) &Params.Bytes[200], 200, 10000);
-    // osDelay(100);*/
+
 }
 
 void GetEEWord(unsigned short *pData, unsigned short EEAddress)

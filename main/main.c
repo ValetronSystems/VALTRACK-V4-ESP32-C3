@@ -36,6 +36,14 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 
+#include "esp_wifi.h"
+#include "esp_bt.h"
+// #include "driver/adc.h"
+#include "esp_sleep.h"
+#include "esp_pm.h"
+#include "driver/rtc_io.h"
+#include "esp_private/phy.h"
+
 
 #define BTBUFF_SIZE 500
 unsigned char BTBuff[BTBUFF_SIZE];
@@ -141,7 +149,7 @@ static int device_write(uint16_t conn_handle, uint16_t attr_handle, struct ble_g
     
     StoreParamString(ParamBeingWritten,token);
 
-    StoreEEParams();
+    //StoreEEParams();
     //char s[30]="Trying";//{8,8,8,8,8,8};
     //snprintf(s,_countof(s),"888888");
     // ESP_LOGW(TAG,"Sending BT data************************************");
@@ -591,7 +599,7 @@ char bstr[250];
 const char CUSTOMER[]="VALETRON_SYSTEMS";
 #endif
 
-
+unsigned char LoadDefaultParams = 0;
 ///NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
 #ifdef PARAMS_NORMAL
 const ParamsType DefaultParams = {
@@ -846,8 +854,8 @@ void InitAccelerometer_LIS3D(void)
 
     VALREAD = I2C_RdReg(0x26);
     VALREAD = I2C_RdReg(0x0F);//VALREAD = I2C_RdReg(0x0D);
-    I2C_WrReg(REG_CTRL_REG1, 0x57);
-    I2C_WrReg(REG_CTRL_REG4, 0x08);
+    I2C_WrReg(REG_CTRL_REG1, 0x57);// LPEN bit 3
+    I2C_WrReg(REG_CTRL_REG4, 0x08);// HR bit 3
     
     osDelay(200);
    //  VALREAD = I2C_RdReg(REG_CTRL_REG1);
@@ -999,6 +1007,7 @@ float NLat,NLong;
 NetworkLocationStatusType NStatus;
 int NAccuracy;
 char NLPacket[80];
+char TowerPacket[100];
 void CheckNetworkLocation(void)
 {
     char*pToken;
@@ -1061,17 +1070,18 @@ void EnableGSM(void)
 
 void DisableGSM(void)
 {
-    #ifdef SIM7600
-    SendATCommand("AT+CPOF\r\n","OK","ERROR",10);// Disconnect network and shutdown
-    #endif
-    #ifdef SIM7070
-    SendATCommand("AT+CPOWD=1\r\n","NORMAL","ERROR",10);// Disconnect network and shutdown
-    #endif
-    
+    // #ifdef SIM7600
+    // SendATCommand("AT+CPOF\r\n","OK","ERROR",10);// Disconnect network and shutdown
+    // #endif
+    // #ifdef SIM7070
+    // SendATCommand("AT+CPOWD=1\r\n","NORMAL","ERROR",10);// Disconnect network and shutdown
+    // #endif
+
+    //osDelay(1000);
     // Disable power to GSM
     gpio_set_level(GPIO_GSM_ENABLE, 0);   
     GSMEnabled = 0;
-    // osDelay(3000);
+    //osDelay(3000);
     
 }
 void EnableMainPower(void)
@@ -1326,7 +1336,7 @@ unsigned char CheckNetwork(void)
         #endif
 
         
-        if(++Retries<100)
+        if(++Retries<20)
         {
             osDelay(1000);
             goto CHECK_NETWORK_AGAIN;
@@ -2223,10 +2233,11 @@ DISCARD2: ResetBTBuffer();
         
     
 }
-
+void GetNetworkData(void);
 
 unsigned char FirstBoot = 0;
 unsigned char GSMInactiveCount=0;
+
 unsigned char InitGSM(void)
 {
     unsigned char i;
@@ -2235,12 +2246,14 @@ unsigned char InitGSM(void)
     #ifdef DEBUG_PRINT
         DebugPrint("Entered-InitGSM\r\n"); 
     #endif
+    //printf("InitGSM-ENtered\n");
+    //while(1){osDelay(10);}
     //int cYear,cMonth,cDate,cHour,cMinute,cSecond;
     // Make PWRKEY High
     UpdateNetwork(0);
     //GSM_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
     
-    //osDelay(1000);
+    //osDelay(5000);
     EnableGSM();
     
     if(FirstBoot == 0)
@@ -2250,9 +2263,9 @@ unsigned char InitGSM(void)
         DebugPrint("Goto-RESTART-InitGSM\r\n"); 
     #endif
     DisableGSM();
-    //osDelay(500);
+    osDelay(500);
     EnableGSM();
-    // osDelay(3000);
+    osDelay(3000);
     //GSM_STATUS = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_12);//GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_0);
     gpio_set_level(GPIO_PWRKEY,1);
    
@@ -2264,8 +2277,10 @@ unsigned char InitGSM(void)
     SKIP_RESET:
     FirstBoot = 1;
     
+    osDelay(3000);
     //ResetBuffer();    
     LoopTimeout1 = 0;
+    
     while(1)
     {
         
@@ -2281,7 +2296,7 @@ unsigned char InitGSM(void)
         osDelay(1);
         
     }
-
+    //printf("init wait done\n");
     UpdateNetwork(0);
     osDelay(5000);
      if(DeviceStatus == 0)
@@ -2291,11 +2306,20 @@ unsigned char InitGSM(void)
     while(SendATCommand("AT\r\n","OK","ERROR",3)==3)//Print("AAAT\r\n");
     {
         if(LoopTimeout2 > 20)
-            goto RESTART;
+        {
+            //printf("No response for AT-retrying\n");
+            //esp_restart();
+            //goto RESTART;
+            //MotionTimer = TIME_TO_SLEEP+1;
+            return 3; // return due to no response
+
+
+        }
     }
     //ResetBuffer();
     if(SendATCommand("AT+CPIN?\r\n","OK","ERROR",3) !=1)
     {
+        MotionTimer = TIME_TO_SLEEP+1;
         return 3;
     }        
    
@@ -2319,11 +2343,12 @@ unsigned char InitGSM(void)
             #ifdef DEBUG_PRINT
                 DebugPrint("GSMInactiveCount>10-InitGSM\r\n"); 
             #endif
-            BackupPackets();
+            //BackupPackets();
             //WriteSRAM(BUFF2_RESET); //TBD
             ESP_LOGW(TAG,"Rebooting from InitGSM-GSM Inactive count");
             esp_restart();
         }
+        printf("Buff2Index=0\n");
         
         
         goto RESTART;
@@ -2331,8 +2356,44 @@ unsigned char InitGSM(void)
         
     SendATCommand("AT+CGMR\r\n","OK","ERROR",3);//Print("AT+CGMR\r\n");
 
-
+    // Shifted up for faster location
+    #ifdef EXT_ANT_ENABLED
     
+            // #if defined(SIM7600)  
+            //     SendATCommand("AT+CGPS=1,1\r\n","OK","ERROR",3);
+            // #endif
+            #if defined(SIM7070)  
+                SendATCommand("AT+CGNSPWR=1\r\n","OK","ERROR",3);     
+            #endif       
+            #if defined(A7672)
+                SendATCommand("AT+CGNSSPWR=1\r\n","READY","ERROR",60);
+                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
+            #endif
+            #if defined(SIM7672)
+                
+                SendATCommand("AT+CGNSSPWR=1\r\n","OK","ERROR",60);
+                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
+                SendATCommand("AT+CGNSSPORTSWITCH=1,1\r\n","OK","ERROR",5);
+                SendATCommand("AT+CGNSSTST=1\r\n","OK","ERROR",30);
+                SendATCommand("AT+CGPSCOLD\r\n","OK","ERROR",30);
+                //SendATCommand("AT+CGNSSFTM=1\r\n","OK","ERROR",30);
+                //SendATCommand("AT+CGNSSINFO\r\n","OK","ERROR",30);
+                SendATCommand("AT+CGNSSIPR?\r\n","OK","ERROR",30);
+                SendATCommand("AT+SIMCOMATI\r\n","OK","ERROR",30);
+                 osDelay(5000);
+                 SendATCommand("AT+BT\r\n","OK","ERROR",30);
+                osDelay(5000);
+                
+                
+            #endif
+            // SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
+        
+    #endif
+
+
+    osDelay(1000);
+    // 
+
     ResetBuffer();
     Print("AT+CSQ\r\n");
     osDelay(500);;
@@ -2460,41 +2521,6 @@ unsigned char InitGSM(void)
     
     osDelay(1000);
     
-    #ifdef EXT_ANT_ENABLED
-    
-            #if defined(SIM7600)  
-                SendATCommand("AT+CGPS=1,1\r\n","OK","ERROR",3);
-            #endif
-            #if defined(SIM7070)  
-                SendATCommand("AT+CGNSPWR=1\r\n","OK","ERROR",3);     
-            #endif       
-            #if defined(A7672)
-                SendATCommand("AT+CGNSSPWR=1\r\n","READY","ERROR",60);
-                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
-            #endif
-            #if defined(SIM7672)
-                
-                SendATCommand("AT+CGNSSPWR=1\r\n","OK","ERROR",60);
-                SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
-                SendATCommand("AT+CGNSSPORTSWITCH=1,1\r\n","OK","ERROR",5);
-                SendATCommand("AT+CGNSSTST=1\r\n","OK","ERROR",30);
-                SendATCommand("AT+CGPSCOLD\r\n","OK","ERROR",30);
-                //SendATCommand("AT+CGNSSFTM=1\r\n","OK","ERROR",30);
-                //SendATCommand("AT+CGNSSINFO\r\n","OK","ERROR",30);
-                SendATCommand("AT+CGNSSIPR?\r\n","OK","ERROR",30);
-                SendATCommand("AT+SIMCOMATI\r\n","OK","ERROR",30);
-                 osDelay(5000);
-                 SendATCommand("AT+BT\r\n","OK","ERROR",30);
-                osDelay(5000);
-                
-                
-            #endif
-            // SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
-        
-    #endif
-
-
-    osDelay(1000);
     
     SendATCommand("AT+CGSN\r\n","OK","ERROR",5);
     pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"\n",1);
@@ -2524,6 +2550,8 @@ unsigned char InitGSM(void)
         DeleteAllSMS();        
         DDelay();
     }
+    //GetNetworkData();
+    CheckNetworkLocation();
     
     
     // CheckNetworkLocation();
@@ -2542,6 +2570,19 @@ void InitGPIO(void)
     io_conf.mode = GPIO_MODE_OUTPUT;
     //bit mask of the pins that you want to set,e.g.GPIO18/19
     io_conf.pin_bit_mask = GPIO_PWRKEY_GSM_ENABLE_PIN_SEL;
+    //disable pull-down mode
+    io_conf.pull_down_en = 0;
+    //disable pull-up mode
+    io_conf.pull_up_en = 0;
+    //configure GPIO with the given settings
+    gpio_config(&io_conf);
+
+
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    //set as output mode
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    //bit mask of the pins that you want to set,e.g.GPIO18/19
+    io_conf.pin_bit_mask = GPIO_LED_SIGNAL;
     //disable pull-down mode
     io_conf.pull_down_en = 0;
     //disable pull-up mode
@@ -2582,7 +2623,8 @@ void InitGPIO(void)
     gpio_hold_dis(GPIO_TPS_ENABLE);
 #endif 
     // gpio_hold_en(GPIO_GSM_ENABLE);
-     gpio_deep_sleep_hold_dis();
+    gpio_hold_dis(GPIO_GSM_ENABLE);
+    gpio_deep_sleep_hold_dis();
 
 }
 
@@ -3029,24 +3071,24 @@ void GetNetworkLocation(void)
 }
 typedef struct NetworkDataField
 {
-    unsigned char Bytes[6];
+    unsigned char Bytes[25];
 }NetworkDataFieldType;
 
 typedef union CENGTypeStruct
 {
-    NetworkDataFieldType Params[10];
+    NetworkDataFieldType Params[6];
     struct FieldsStruct
     {
-        unsigned char Index[6];
-        unsigned char bcch[6];
-        unsigned char rxl[6];
-        unsigned char bsic[6];
-        unsigned char cellid[6];
-        unsigned char mcc[6];
-        unsigned char mnc[6];
-        unsigned char lac[6];
-        unsigned char c1[6];
-        unsigned char c2[6];
+        unsigned char   Index[25];
+        unsigned char mcc_mnc[25];
+        unsigned char     lac[25];
+        unsigned char  cellid[25];
+        unsigned char    rsrp[25];
+        unsigned char    rsrq[25];
+//        unsigned char mnc[6];
+//        unsigned char lac[6];
+//        unsigned char c1[6];
+//        unsigned char c2[6];
     }Fields;
     
     // unsigned char  Index[2];
@@ -3061,30 +3103,72 @@ typedef union CENGTypeStruct
     // unsigned char c2[5];
 }NetworkDataType;
 #define NETWORK_DATA_SIZE 6
+#define NETWORK_PARAMS_COUNT 6
+
 NetworkDataType NetworkData[NETWORK_DATA_SIZE];
 
 void HandleNetworkTowerData(char *pData,NetworkDataType *pNetworkData)
 {
     char *pToken;
     unsigned char i;
-    char seps[] ="\"  ,\t\n";
+    char seps[] =": ,\t\n";
     
     pToken = strtok (pData,seps);
     i=0;
     //if(pToken!= NULL) pToken = strtok (NULL, seps);
     while (pToken != NULL)
     {
+        
         pToken = strtok (NULL, seps);
         sscanf (pToken, "%s", (char*)&pNetworkData->Params[i]);
         
+        pToken = strtok (NULL, seps);
+        
+        
         i++;
-        if(i>10) break;
+        if(i>=NETWORK_PARAMS_COUNT) break;
     }
 }
+char cmdstr[200];
+unsigned char TowerCount = 0;
+void NetworkJSONData(char *pData)
+{
+    unsigned char i;
+    
+    sprintf((void*)pData,"[");
+    for(i = 0; i < TowerCount; i++)
+    {      
+        
+        if(i>=3) break; // Sending max 3 tower
+            
+        sprintf(cmdstr,"{%s,%s,%s}",NetworkData[i].Fields.mcc_mnc,NetworkData[i].Fields.lac,NetworkData[i].Fields.cellid);
+        strcat(pData,cmdstr);
+        
+    }
+    strcat(pData,"]");
+//    sprintf((void*)pData,"[{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"}]",
+//        NetworkData[0].Fields.cellid,
+//        NetworkData[0].Fields.mcc,
+//        NetworkData[0].Fields.mnc,
+//        NetworkData[0].Fields.lac,
+//        NetworkData[1].Fields.cellid,
+//        NetworkData[1].Fields.mcc,
+//        NetworkData[1].Fields.mnc,
+//        NetworkData[1].Fields.lac,
+//        NetworkData[2].Fields.cellid,
+//        NetworkData[2].Fields.mcc,
+//        NetworkData[2].Fields.mnc,
+//        NetworkData[2].Fields.lac
+//    );
+}
+
 void GetNetworkData(void)
 {
     char *pToken;
+    unsigned char i,j,retries;
     NetworkDataType *pNetworkData;
+    retries = 0;
+RETRY_NWD:    
     
     ResetBuffer();
     Print( "AT+CNETCI?\r\n"); 
@@ -3108,66 +3192,83 @@ void GetNetworkData(void)
         
     }
     osDelay(5000);
-    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CENG: 1",8);
-    if(pToken != NULL)
+    j=0;
+    for(i=0;i<9;i++) // Check for 9 towers
     {
-        pNetworkData = &NetworkData[0];
-        HandleNetworkTowerData(pToken,pNetworkData);
+        sprintf(cmdstr,"+CNETCINONINFO: %d",i);
+        pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+        if(pToken != NULL)
+        {
+            printf("found = %d\n",i);
+            pNetworkData = &NetworkData[j];
+            HandleNetworkTowerData(pToken,pNetworkData);
+            
+            j++; // j is network array length
+            if(j>=NETWORK_DATA_SIZE) 
+                break;
+        }
     }
-    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CENG: 2",8);
-    if(pToken != NULL)
+    TowerCount = j;// For reading later
+    if(j == 0 && retries  == 0)
     {
-        pNetworkData = &NetworkData[1];
-        HandleNetworkTowerData(pToken,pNetworkData);
+        retries++;
+        goto RETRY_NWD; // Try again once more if no tower data arrived
     }
-    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CENG: 3",8);
-    if(pToken != NULL)
-    {
-        pNetworkData = &NetworkData[2];
-        HandleNetworkTowerData(pToken,pNetworkData);
-    }
+    NetworkJSONData(TowerPacket);
+//    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 1",17);
+//    if(pToken != NULL)
+//    {
+//        pNetworkData = &NetworkData[1];
+//        HandleNetworkTowerData(pToken,pNetworkData);
+//    }
+//    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 2",17);
+//    if(pToken != NULL)
+//    {
+//        pNetworkData = &NetworkData[2];
+//        HandleNetworkTowerData(pToken,pNetworkData);
+//    }
      
 }
-void NetworkJSONData(char *pData)
-{
-    sprintf((void*)pData,"[{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"}]",
-        NetworkData[0].Fields.cellid,
-        NetworkData[0].Fields.mcc,
-        NetworkData[0].Fields.mnc,
-        NetworkData[0].Fields.lac,
-        NetworkData[1].Fields.cellid,
-        NetworkData[1].Fields.mcc,
-        NetworkData[1].Fields.mnc,
-        NetworkData[1].Fields.lac,
-        NetworkData[2].Fields.cellid,
-        NetworkData[2].Fields.mcc,
-        NetworkData[2].Fields.mnc,
-        NetworkData[2].Fields.lac
-    );
-}
+// void NetworkJSONData(char *pData)
+// {
+//     sprintf((void*)pData,"[{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"}]",
+//         NetworkData[0].Fields.cellid,
+//         NetworkData[0].Fields.mcc,
+//         NetworkData[0].Fields.mnc,
+//         NetworkData[0].Fields.lac,
+//         NetworkData[1].Fields.cellid,
+//         NetworkData[1].Fields.mcc,
+//         NetworkData[1].Fields.mnc,
+//         NetworkData[1].Fields.lac,
+//         NetworkData[2].Fields.cellid,
+//         NetworkData[2].Fields.mcc,
+//         NetworkData[2].Fields.mnc,
+//         NetworkData[2].Fields.lac
+//     );
+// }
 
 void ConvertToJSONPacket(HWEventDataType *pPacket,unsigned short *pDataLength, char *pStr)
 {
     
 query[0] = 0;
-
+//// \"time\":\"20%02d-%02d-%02d %02d:%02d:%02d\",
 #ifdef PAYLOAD_NORMAL
     *pDataLength = sprintf((void*)pStr,
     "{\"devid\":\"%s\",\
-\"time\":\"20%02d-%02d-%02d %02d:%02d:%02d\",\
 \"etype\":\"%s\",\
 \"lat\":\"%f\",\
 \"lon\":\"%f\",\
-\"vbat\":\"%0.3f\",\
-\"speed\":\"%f\"%s%s}",
+\"vbat\":\"%f\",\
+\"speed\":\"%s\"%s%s}",
         
         IMEI,
-        pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.Hours,pPacket->GEvent.Minutes,pPacket->GEvent.Seconds,
+        //pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.Hours,pPacket->GEvent.Minutes,pPacket->GEvent.Seconds,
         (ETypes[pPacket->GEvent.EventType].Bytes),
         pPacket->GEvent.Lat,//tfLat,//pPacket->GEvent.fLat,
         pPacket->GEvent.Long,//tfLong,//pPacket->GEvent.fLong,
         pPacket->GEvent.Voltage,//ChargeVoltage,
-        pPacket->GEvent.Speed,//pPacket->GEvent.Speed//,
+        //pPacket->GEvent.Speed,//pPacket->GEvent.Speed//,
+        TowerPacket,
         NLPacket,
         query
     );
@@ -3245,7 +3346,7 @@ pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.
     
 }
 float ADCvalue;
-char cmdstr[200];
+//char cmdstr[200];
 unsigned char TCPRetries = 0;
 #ifdef SIM7600
 char XUDP_Request(char *pFilename, unsigned char pingtype)
@@ -3720,7 +3821,7 @@ char XHTTP_Request(char *pFilename, unsigned char pingtype)
     ResetBuffer();    
     
     Print(str);
-   
+    printf(str);
     //putOn4BData=0;
     LoopTimeout1 = 0;
     while(1)
@@ -4002,7 +4103,429 @@ void URLDivider(char *pURL,int URLSize, char *pDomain,int DomainSize, char *pPat
 }
 
 char YHTTP_Request(char *pFilename, unsigned char pingtype)
-{}
+{
+    //char eventnumber[5];
+    //char *pResult;
+    //unsigned char retries,i;
+    char *pToken;//,*pData;
+    //char *pToken1;
+    //unsigned char CheckSum,cs[2];
+    pPacket = &CPacket;
+    //retries = 0;
+    //TCPRetries = 0;
+//    unsigned char encodedByte;
+//    int X; 
+    int ResponseLength=0;
+    //unsigned short MQTTProtocolNameLength;
+    unsigned short MQTTClientIDLength;
+    //unsigned short MQTTUsernameLength;
+    //unsigned short MQTTPasswordLength;
+//    unsigned char k=0;
+    char Domain[150],Path[150],Header[200],KeyName[50],KeyValue[100];
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("Entered-TCP_request\r\n"); 
+    #endif
+    
+    
+/*
+    #ifndef STANDALONE_DEMO
+    CheckSum = GetCheckSum(pPacket->Bytes,34);
+    cs[1]=GetAscii(CheckSum&0x0F);  
+    cs[0]=GetAscii((CheckSum>>4) & 0x0F);  
+    if((pPacket->GEvent.CheckSum[0] != cs[0]) || (pPacket->GEvent.CheckSum[1] != cs[1]))
+    {
+        retVal=0;
+        return 0;
+    }
+#endif
+    */
+    
+//   RESEND_TCP:
+    WakeUp();
+    SOS = gpio_get_level(GPIO_SOS);
+    if(SOS == 0)
+    {
+        goto SUCCESS;
+    }
+    ////Print4("Resending\r\n");
+    ////IWDG_ReloadCounter();
+    ResetBuffer();
+    Print( "AAAAAAAAAAAAAT\r\n");    
+    LoopTimeout1 = 0;
+    while(1)
+    {
+        if(MapForward(Buff2,BUFF2_SIZE,(char*)"OK",2) != NULL)
+                break;
+        if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>10))
+        {       goto EXIT_MQTT; }
+        Count++;
+    }
+   
+    // RECONNECT:
+
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("CCHSTART OK-TCP_request"); 
+    #endif
+    // RESTART_MQTT:
+    
+  /////////////////////////////////////////////////////////////////////////
+    MQTTClientIDLength = strlen((void*)IMEI);//strlen(Params.Fields.MQTTClientID);
+    topiclength = sprintf((void*)topic,(void*)Params.Fields.MQTTTopic);
+    
+    // if(SendATCommand("AT+CNACT=0,1\r\n","0,ACTIVE","ERROR",10) != 1) goto EXIT_MQTT;
+    SendATCommand("AT+CNACT=0,1\r\n","0,ACTIVE","ERROR",10);
+    
+//RECHECK_IP:    
+    if(SendATCommand("AT+CNACT?\r\n","+CNACT: 0,0,\"0.0.0.0\"","OK",10) == 1)
+    //if(SendATCommand("AT+CNACT?\r\n","+CNACT: 0,1","OK",10) != 1)
+    {
+        sprintf((void*)str,"NO IP ADDRESS");
+        //if(SendATCommand("AT+CFUN=0\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        sprintf(
+            (void*)cmdstr,
+            "AT+CGDCONT=1,\"IP\",\"%s\"\r\n",
+            Params.Fields.APNName
+        );
+        if(SendATCommand(cmdstr,"OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        //if(SendATCommand("AT+CFUN=1\r\n","+CPIN: READY","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CFUN=1\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        if(SendATCommand("AT+CGATT=1\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CGATT?\r\n","+CGATT: 1","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CGNAPN\r\n","+CGNAPN: 1,","ERROR",10) != 1) goto EXIT_MQTT;
+        sprintf(
+            (void*)cmdstr,
+            "AT+CNCFG=0,1,\"%s\",\"%s\",\"%s\"\r\n",
+            Params.Fields.APNName,
+            Params.Fields.APNUsername,
+            Params.Fields.APNPassword
+        );
+        if(SendATCommand(cmdstr,"OK","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CNACT=0,1\r\n","+APP PDP: 0,ACTIVE","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CNACT?\r\n","+CNACT: 0,1,\"0.0.0.0\"","OK",10) == 1) goto EXIT_MQTT;
+    }
+    sprintf((void*)str,"IP ADDRESS OK");
+    ///////////////////////////////////////////////////////////////
+//    if(Params.Fields.MQTTPort[0] == '8')
+//        sprintf((void*)cmdstr,"AT+CMQTTACCQ=0,\"%s\",1\r\n",IMEI);
+//    else
+//        sprintf((void*)cmdstr,"AT+CMQTTACCQ=0,\"%s\"\r\n",IMEI);
+//    
+//    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+//    {
+//        sprintf((void*)str,"CLIEND ID FAILED");
+//        goto EXIT_MQTT;
+//    }
+//    sprintf((void*)str,"CLIENT ID OK");
+
+    ////////////////////////////////////////////////////////////////
+
+// RECONNECT_MQTT:    
+    
+    URLDivider(Params.Fields.HTTPURL,sizeof((Params.Fields.HTTPURL)),Domain,sizeof(Domain),Path, sizeof(Path));
+    ESP_LOGI(TAG,"%s---\r\n",Path);
+    if(MapForward(Params.Fields.HTTPURL,sizeof(Params.Fields.HTTPURL),(char*)"https",5) != NULL)
+    {
+        SendATCommand("AT+CSSLCFG=\"sslversion\",1,3\r\n","OK","ERROR",10);
+        SendATCommand("AT+SHSSL=1\r\n","OK","ERROR",10);
+
+    }
+    sprintf((void*)cmdstr,"AT+SHCONF=\"URL\",\"%s\"\r\n",Domain);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        sprintf((void*)str,"URL FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SHCONF=\"BODYLEN\",1024\r\n");
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        sprintf((void*)str,"BODYLEN FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SHCONF=\"HEADERLEN\",350\r\n");
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        sprintf((void*)str,"HEADER FAILED");
+        goto EXIT_MQTT;
+    }
+
+//    sprintf(
+//        (void*)cmdstr,
+//        "AT+CMQTTCONNECT=0,\"tcp://%s:%s\",60,1,\"%s\",\"%s\"\r\n",
+//        Params.Fields.MQTTHost,
+//        Params.Fields.MQTTPort,
+//        Params.Fields.MQTTUsername,
+//        Params.Fields.MQTTPassword
+//        );
+    if(SendATCommand("AT+SHCONN\r\n","OK","ERROR",20) != 1)
+    {
+        sprintf((void*)str,"CONNECT FAILED");
+        goto EXIT_MQTT;
+    }
+    if(SendATCommand("AT+SHSTATE?\r\n","+SHSTATE: 1","ERROR",20) != 1)
+    {
+        sprintf((void*)str,"CONNECT CHECK FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)str,"CONNECT OK");
+    
+    if(SendATCommand("AT+SHCHEAD\r\n","OK","ERROR",20) != 1)
+    {
+        sprintf((void*)str,"CLEAR HEADER FAILED");
+        goto EXIT_MQTT;
+    }
+    if(SendATCommand("AT+SHAHEAD=\"Content-Type\",\"application/json\"\r\n","OK","ERROR",20) != 1)
+    {
+        sprintf((void*)str,"JSON HEAD FAILED");
+        goto EXIT_MQTT;
+    }
+    memcpy(Header,Params.Fields.HTTPKey,sizeof(Header)); // Because strtok destroys original string
+    pToken = (void*)strtok ((void*)Header,":");
+    if(pToken != NULL)
+    {
+        sscanf((void*)pToken,"%s",KeyName);
+    }
+    pToken = (void*)strtok (NULL,":");
+    if(pToken != NULL)
+    {
+        sscanf((void*)pToken,"%s",KeyValue);
+    }
+    GetEEParams(); // Restore params
+    //sprintf((void*)cmdstr,"AT+SHAHEAD=\"X-DreamFactory-Api-Key\",\"%s\"\r\n","699cef40368daa8e98d2684830aef4e2fe2d8b9a6c0c1f9da9125cec266c479e");//Params.Fields.HTTPKey);
+    sprintf((void*)cmdstr,"AT+SHAHEAD=\"%s\",\"%s\"\r\n",KeyName,KeyValue);//Params.Fields.HTTPKey);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        sprintf((void*)str,"API KEY FAILED");
+        goto EXIT_MQTT;
+    }
+   
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("ConnectPKT_OK-TCP_request\r\n"); 
+    #endif
+   while(1)
+    {
+        #ifdef DEBUG_PRINT
+        
+            DebugPrint("PUB while 1 Enter-TCP_request\r\n"); 
+        #endif
+        CheckBattery();
+        
+        if(CheckNetwork() == 1)
+            UpdateNetwork(0);
+        else
+            UpdateNetwork(1);
+        if(MotionTimer > TIME_TO_SLEEP)
+        {
+            retVal=0;
+            return 0;
+        }
+//////////////////////////////////////////////////////////
+    #ifdef EXT_ANT_ENABLED 
+        XCheckGPS();
+
+    #endif
+    #ifdef NETWORK_LOCATION_ENABLED
+        GetNetworkLocation();
+    #endif
+///////////////////////////////////////////////////////////      
+        
+        if(SystemState == State_ConnectedState) return 0; // Return and idle for proper configuration and prevent EEPROM access
+        
+      
+            memset(str,0,sizeof(str));
+       
+            ConvertToJSON(pPacket,&datalength,str);
+            //osDelay(2000);
+            sprintf((void*)cmdstr,"AT+SHBOD=%d,10000\r\n",datalength);
+            // Print(cmdstr);
+            //osDelay(1000);
+           if(SendATCommand(cmdstr,">","ERROR",20) != 1)
+           {
+               // Dont use str here
+               ESP_LOGI(TAG,"BODY failed");
+               goto EXIT_MQTT;
+           }
+            //osDelay(4000);
+            Print(str); 
+            LoopTimeout1 = 0;
+            while(1)
+            {
+                if(MapForward(Buff2,BUFF2_SIZE,(char*)"OK",2) != NULL)
+                {
+                    ESP_LOGI(TAG,"PAYLOAD SUCCESS");
+                    //TCPRetries=0;
+                    ConnectivityTimer = 0;
+                    break;
+                }
+                if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>20))
+                {   
+                    ESP_LOGI(TAG,"PAYLOAD ERROR");                    
+                    goto EXIT_MQTT; 
+                        
+                }
+                
+            }
+//            sprintf((void*)cmdstr,"AT+SHBOD?\r\n");
+//            if(SendATCommand(cmdstr,"+SHBOD:","ERROR",20) != 1)
+//            {
+//                sprintf((void*)str,"BODY READ FAILED");
+//                goto EXIT_MQTT;
+//            }
+            
+            sprintf((void*)cmdstr,"AT+SHREQ=\"%s\",3\r\n",Path);
+            //sprintf((void*)cmdstr,"AT+SHREQ=\"/api/v2/update\",3\r\n");
+            SendATCommand(cmdstr,"POST","ERROR",200);
+            
+            
+            pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"\"POST\",200",10);
+            if(pToken!= NULL) 
+            {                
+                sscanf(pToken+11,"%3d",&ResponseLength);
+                ESP_LOGI(TAG,"PUBLISH SUCCESS-200");
+            }
+            pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"\"POST\",302",10);
+            if(pToken!= NULL)             
+            {
+                sscanf(pToken+11,"%3d",&ResponseLength);
+                ESP_LOGI(TAG,"PUBLISH SUCCESS-302");
+            }
+            else
+            {
+                ESP_LOGI(TAG,"PUBLISH FAILED");
+                goto EXIT_MQTT;
+            }
+            sprintf((void*)cmdstr,"AT+SHREAD=0,%d\r\n",ResponseLength);
+            if(SendATCommand(cmdstr,"+SHREAD:","ERROR",20) != 1)
+            {
+                ESP_LOGI(TAG,"READ FAILED");
+                //goto EXIT_MQTT;
+            }
+            osDelay(2000);
+//            if(SendATCommand("AT+SHREQ=\"%s\",3\r\n","\"POST\",200","ERROR",20) != 1)
+//            {
+//                sprintf((void*)str,"PUBLISH FAILED");
+//                goto EXIT_MQTT;
+//            }
+            ESP_LOGI(TAG,"PUBLISH SUCCESS");   
+
+            osDelay(3000);
+            #ifdef DEBUG_PRINT
+        
+                DebugPrint("PUB complete -TCP_request\r\n"); 
+            #endif
+            goto SUCCESS;
+        
+
+
+        if(MapForward(Buff2,BUFF2_SIZE,(char*)"CLOSE",5) != NULL)
+        {
+            #ifdef DEBUG_PRINT
+        
+                DebugPrint("CLOSED-TCP_request\r\n"); 
+            #endif
+            goto EXIT_MQTT;//goto RECONNECT;
+        }
+        if(Params.Fields.WorkingMode[0] !='H')
+            goto SUCCESS;
+        
+        SOS = gpio_get_level(GPIO_SOS);
+        if(SOS == 0)
+        {
+            goto SUCCESS;
+        }
+        
+        //CheckBattery();
+     
+        
+    }
+    
+    
+    goto SUCCESS;
+    //free(string);
+SUCCESS: 
+    ClearEventCache();
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("TCP_SUCCESS -TCP_request\r\n"); 
+    #endif
+    //SendATCommand("AT+CMQTTREL=0\r\n","OK","ERROR",10);
+    //osDelay(1000);
+    SendATCommand("AT+SHDISC\r\n","OK","ERROR",10);
+    // SendATCommand("AT+CNACT=0,0\r\n","DEACTIVE","ERROR",10);
+//    #ifndef TIMER_ONLY_WAKEUP
+//    goto RECONNECT_MQTT;
+//    #endif
+//    
+    //osDelay(1000);
+    //SendATCommand("AT+CMQTTSTOP\r\n","+CMQTTSTOP:","ERROR",10);
+    //osDelay(1000);
+    
+    
+    //Print4("SUCCESS\r\n");
+   
+    retVal=0;
+    return 0;
+//exit: 
+EXIT_MQTT:
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("TCP_EXIT -TCP_request\r\n"); 
+    #endif
+    //if(Params.Fields.MQTTPort[0] != '1')
+    {
+        
+        SendATCommand("AT+SHDISC\r\n","OK","ERROR",10);
+        // SendATCommand("AT+CNACT=0,0\r\n","DEACTIVE","ERROR",10);
+        //osDelay(1000);
+        
+    }
+//    ResetBuffer();
+//    Print("AT+NETCLOSE\r\n");
+//    LoopTimeout1 = 0;
+//    while(1)
+//    {
+//        if(MapForward(Buff2,BUFF2_SIZE,(char*)"NETCLOSE",8) != NULL)
+//                break;
+//        if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>5))
+//        {       break; }
+//        Count++;
+//    }
+//    osDelay(1000);
+    //Print4("FAILED\r\n");
+    
+  
+//    if(++TCPRetries < 8) 
+//        goto RESEND_TCP;
+//    else
+//    {        
+//        #ifdef DEBUG_PRINT
+//        
+//            DebugPrint("TCP_Retry_exceeded -TCP_request\r\n"); 
+//        #endif
+//        retVal = 1;
+////        HAL_UART_MspDeInit(&hlpuart1);
+////        MX_LPUART1_UART_Init();
+//        DisableGSM();
+//        InitGSM();
+//        TCPRetries = 0;
+//    }
+      
+//    #ifdef EEPROM_FIFO
+//    PostEEEvent(pPacket);
+//    #endif
+    
+    //PostEvent(pPacket);
+    RestoreEventCache();
+    
+    
+    return 0;
+}
+
 #endif // SIM7070
 #ifdef SIM800
 char ZHTTP_Request(char *pFilename, unsigned char pingtype)
@@ -4462,12 +4985,12 @@ EXIT_MQTT:
 
 #ifdef SIM7070 
 
-char _YMQTT_Request(char *pFilename, unsigned char pingtype)
-{}
+
 
 char YMQTT_Request(char *pFilename, unsigned char pingtype)
 {}
 #endif // SIM7070
+
 
 
 #ifdef SIM800 
@@ -4582,9 +5105,19 @@ void DeepSleep (void)
             RTCSleepModeEnabled = 1;
             
             
-            InitRTCAlarm();
+            //InitRTCAlarm();
             SleepModeEnabled = 1;
             DisableMainPower();
+
+            esp_wifi_stop();
+            esp_wifi_deinit();
+
+            esp_bt_controller_disable();
+            esp_bt_controller_deinit();
+
+            esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+            nimble_port_freertos_deinit();  
+            nvs_flash_deinit();
             //nimble_port_stop(); // BLE Causes crash
             
             /////////////////////////////////////
@@ -4593,7 +5126,10 @@ void DeepSleep (void)
             gpio_hold_en(GPIO_GSM_ENABLE);
             gpio_deep_sleep_hold_en();
             /////////////////////////////////
+           
             EnterDeepSleep();
+
+            
             // osThreadFlagsWait( 1, osFlagsWaitAny, osWaitForever); // TBD
         }
 
@@ -4787,9 +5323,14 @@ void RTC_Alarm_IRQHandler(void)
 unsigned char VALTRACK_BLE_Status = 0,Prev_VALTRACK_BLE_Status = 0;
 // void VALTRACK_BLE_Advertise(unsigned char Status);
 unsigned char ForceEraseEEPROM  = 0;
-unsigned char LoadDefaultParams = 0;
-    
 
+unsigned char ServerRetries = 0;
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used 
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
 void StartMainTask(void *argument)
 {
    
@@ -4814,12 +5355,12 @@ ESP_LOGI(TAG,"Entered main task");
 
 //  /* Configure the system clock */
 //  SystemClock_Config();
-    if(BootReason <= 8)
-    {
-        // Print1("\r\n\r\n");
-        ESP_LOGI(TAG,"Boot Reason = %s",(char*)(BootReasons[BootReason].Bytes)); // TBD
-        // Print1("\r\n\r\n");
-    }
+    // if(BootReason <= 8)
+    // {
+    //     // Print1("\r\n\r\n");
+    //     ESP_LOGI(TAG,"Boot Reason = %s",(char*)(BootReasons[BootReason].Bytes)); // TBD
+    //     // Print1("\r\n\r\n");
+    // }
 //  /* USER CODE BEGIN SysInit */
 //  PeriphClock_Config();
 //  Init_Exti(); /**< Configure the system Power Mode */
@@ -4836,7 +5377,7 @@ ESP_LOGI(TAG,"Entered main task");
     #ifndef WB_PIN_CONTROLLED_LED
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET); // LED Controller Enable
     #endif
-
+    //DisableGSM();
     EnableGSM(); // For LED
     // UpdateLED1(RED_COLOR);
     // UpdateLED3(RED_COLOR);
@@ -4912,7 +5453,7 @@ ESP_LOGI(TAG,"Entered main task");
     {
         //memcpy(Params.Bytes,DefaultParams.Bytes,sizeof(Params));
         //StoreEEParams();
-        StoreParams(&DefaultParams);
+        StoreParams((void*)&DefaultParams);
         LoadDefaultParams = 0;
     }
     if(ForceEraseEEPROM == 1)
@@ -4946,6 +5487,8 @@ ESP_LOGI(TAG,"Entered main task");
     if(InitGSM() == 3)
     {
         MotionTimer = TIME_TO_SLEEP+1; //  Make sure no events are in queue to enter sleep
+        ClearPackets();
+        printf("entering stop due to init gsm\n");
         goto ENTER_STOP_MODE;
     }
     //InitGPS();
@@ -5146,6 +5689,11 @@ ESP_LOGI(TAG,"Entered main task");
                 EnableGSM(); // For LED
                 UpdateNetwork(3);
                 UpdateLocation(0);
+
+                //DisableGSM();
+                // printf("before delay\n");
+                // osDelay(20000);
+                // printf("after delay\n");
                 
                 /*
                 __disable_irq();
@@ -5908,8 +6456,20 @@ ESP_LOGI(TAG,"Entered main task");
                         #endif
                         
                         #ifdef SIM7600
-                            
-                            XHTTP_Request(pFilename,1);
+                            if((XHTTP_Request(pFilename,1)) != 0)
+                            {
+                                ServerRetries++;
+                                if(ServerRetries > 2)
+                                {
+
+                                    ServerRetries = 0;
+                                    MotionTimer = TIME_TO_SLEEP+1; //  Make sure no events are in queue to enter sleep
+                                    ClearEventCache();
+                                    while(GetEvent(&GPacket,EVENT_QUEUE) == GET_SUCCESS); // Hopefully doesnt need counter
+                                    MotionTimer=TIME_TO_SLEEP+1;
+                                    goto ENTER_STOP_MODE;
+                                }
+                            }
                         
                         #endif
                         #ifdef SIM7070
@@ -6026,8 +6586,11 @@ void app_main(void)
 {
     
     
+ 
+    //SleepHere();
     // vTaskDelay(5000 / portTICK_PERIOD_MS);    
     SystemInit();
+    //esp_sleep_cpu_retention_init(); //  Also return true in sleep_modem.c  modem_domain_pd_allowed function.
     ///
     // EnableGSM();// For LED
     // MakeAllLED(PURPLE);

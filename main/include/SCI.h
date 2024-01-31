@@ -14,7 +14,7 @@
 
 #define VALTRACK_V4_VTS
 //#define VALTRACK_V4MF
-//#define VALTRACK_V4MFW
+
 
 
 //#define V4MF_UM_WB
@@ -41,7 +41,7 @@
 
 extern const char *TAG;
 
-//#define DISABLE_CHARGING_LOOP
+#define DISABLE_CHARGING_LOOP
 
 //#define SE868_ENABLED
 #define EXT_ANT_ENABLED
@@ -79,7 +79,6 @@ extern const char *TAG;
 #define SLEEP_ENABLED
 //#define SLEEP_DISABLED
 
-
 #define PARAMS_NORMAL
 
 //#define CUSTOM_MQTT_CLIENT_ID
@@ -100,7 +99,7 @@ extern const char *TAG;
 #define GREEN_RANGE_HIGH    4
 
 #define GREEN_F_RANGE_LOW   4.0
-#define GREEN_F_RANGE_HIGH  4.2
+#define GREEN_F_RANGE_HIGH  4.7
 
 #else
 
@@ -172,7 +171,7 @@ extern const char *TAG;
 
 
 #define TIME_TO_SLEEP 300
-#define HEART_BEAT_INTERVAL 12*3600
+#define HEART_BEAT_INTERVAL 6*3600
 
 #define BLUETOOTH_ENABLED
 
@@ -191,6 +190,7 @@ extern const char *TAG;
 // ANALOG IN 2
 // IIC DATA 5
 // IIC CLOCK 6
+#define GPIO_LED_SIGNAL 8
 #define GPIO_PWRKEY    7
 #define GPIO_GSM_ENABLE    10
 #define GPIO_TPS_ENABLE    4
@@ -201,8 +201,8 @@ extern const char *TAG;
 #define GPIO_CHG_IN   4
 #define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS) | (1ULL<<GPIO_CHG_IN))  
 
-#define ENABLE_TPS_CONTROL 
-//#define DISABLE_TPS_CONTROL
+//#define ENABLE_TPS_CONTROL 
+#define DISABLE_TPS_CONTROL
 
 #define UART_PORT_NUM UART_NUM_1
 

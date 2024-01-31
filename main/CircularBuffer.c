@@ -19,7 +19,7 @@
 #include <nvs_flash.h>
 #include "esp_err.h"
 #include "CircularBuffer.h"
-#define EVENTS_INDEX_MASK 0x7FF//0x1F  // Note must be (power of 2) minus 1 0x3E=62,0x7C=124,0xF8=248,0x1F0=496
+#define EVENTS_INDEX_MASK 0x1F//0x1F  // Note must be (power of 2) minus 1 0x3E=62,0x7C=124,0xF8=248,0x1F0=496
 #define EVENTS_INDEX_MASK_2 0x1F  // Note must be (power of 2) minus 1
 
 
@@ -112,6 +112,21 @@ void ClearEventCache(void)
     }
     GPacketCacheIndex = 0;
 }
+
+void ClearPackets(void)
+{
+    unsigned char i=0;
+    HWEventDataType TPacket;
+    RestoreEventCache(); // Save cache data
+    while(GetEvent(&TPacket,EVENT_QUEUE) == GET_SUCCESS)
+    {
+        //TBD//PostEEEvent(&TPacket);
+        i++;
+        if(i>100) // May be more needed - TBD
+            break;
+    }
+}
+
 void BackupPackets(void)
 {
     unsigned char i=0;
@@ -491,6 +506,7 @@ void StoreParamString(char *pParamName,char *pParam)
         nvs_close(my_handle);
 
     }
+    GetParams(&Params);
     
 }
 

@@ -494,7 +494,7 @@ char * MapForward
 {
     unsigned short DataIndex;
     unsigned short MapPointIndex;
-    
+    osDelay(10);
     for(DataIndex = 0; DataIndex < MapDataLength - MapPointsLength + 1; DataIndex++)
     {
         

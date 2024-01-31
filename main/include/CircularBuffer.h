@@ -184,6 +184,7 @@ void StoreEEParams(void);
 unsigned char IsQueueEmpty(QueueType Queue);
 void BackupPackets(void);
 void RestorePackets(void);
+void ClearPackets(void);
 void EraseEEPROMPackets(void);
 
 void SaveToEventCache(HWEventDataType *pHardwareEvent);

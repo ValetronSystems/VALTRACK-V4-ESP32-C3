@@ -151,4 +151,5 @@ void BlinkAllBlue(void);
 void TurnOffLED(void);
 void configure_led(void);
 void MakeAllLED(uint8_t R, uint8_t G, uint8_t B);
+void led_deinit(void);
 #endif

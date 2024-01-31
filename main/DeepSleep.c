@@ -20,6 +20,7 @@
 #include "esp_sleep.h"
 #include "esp_log.h"
 #include "driver/rtc_io.h"
+#include "driver/uart.h"
 #include "soc/rtc.h"
 #include "SCI.h"
 
@@ -236,13 +237,35 @@ void EnterDeepSleep(void)
 #endif // CONFIG_EXAMPLE_EXT1_WAKEUP
 
 #ifdef CONFIG_EXAMPLE_GPIO_WAKEUP
-    const gpio_config_t config = {
-        .pin_bit_mask = BIT(DEFAULT_WAKEUP_PIN),
+    // const gpio_config_t config = {
+    //     .pin_bit_mask = BIT(DEFAULT_WAKEUP_PIN),
+    //     .mode = GPIO_MODE_INPUT,
+    // };
+    // ESP_ERROR_CHECK(gpio_config(&config));
+    // ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT(DEFAULT_WAKEUP_PIN), DEFAULT_WAKEUP_LEVEL));
+    // ESP_LOGI(TAG,"Enabling GPIO wakeup on pins GPIO%d\n", DEFAULT_WAKEUP_PIN);
+
+     const gpio_config_t config1 = {
+        .pin_bit_mask = BIT(GPIO_INT1),
         .mode = GPIO_MODE_INPUT,
     };
-    ESP_ERROR_CHECK(gpio_config(&config));
-    ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT(DEFAULT_WAKEUP_PIN), DEFAULT_WAKEUP_LEVEL));
-    ESP_LOGI(TAG,"Enabling GPIO wakeup on pins GPIO%d\n", DEFAULT_WAKEUP_PIN);
+    ESP_ERROR_CHECK(gpio_config(&config1));
+    //ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT(GPIO_INT1), DEFAULT_WAKEUP_LEVEL));
+    // gpio_sleep_set_direction(GPIO_NUM_3, GPIO_MODE_INPUT); 
+    // osDelay(100);
+    // gpio_sleep_set_pull_mode(GPIO_NUM_3, GPIO_FLOATING);
+    // osDelay(100);
+    // ESP_ERROR_CHECK(gpio_wakeup_enable(BIT(GPIO_INT1),GPIO_INTR_LOW_LEVEL));
+    // osDelay(100);
+    // ESP_ERROR_CHECK(esp_sleep_enable_gpio_wakeup());
+
+    
+    
+    ESP_ERROR_CHECK(esp_deep_sleep_enable_gpio_wakeup(BIT(GPIO_INT1), DEFAULT_WAKEUP_LEVEL));
+    ESP_LOGI(TAG,"Enabling GPIO wakeup on pins GPIO%d\n", GPIO_INT1);
+
+
+    
 
 #endif
 
@@ -334,7 +357,19 @@ void EnterDeepSleep(void)
 #endif
 #endif
 
+
+    /* To make sure the complete line is printed before entering sleep mode,
+    * need to wait until UART TX FIFO is empty:
+    */
+    uart_wait_tx_idle_polling(CONFIG_ESP_CONSOLE_UART_NUM);
+
     esp_deep_sleep_start();
+    //esp_light_sleep_start();
+
+    SleepWakeupReason();
+
+    //printf("returned\n");
+    esp_restart();
 }
 
 #ifdef CONFIG_EXAMPLE_TOUCH_WAKEUP

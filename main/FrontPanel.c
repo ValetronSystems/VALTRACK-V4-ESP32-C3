@@ -10,43 +10,87 @@
 #include "esp_log.h"
 #include "FrontPanel.h"
 #include "led_strip.h"
-
+#include "driver/rmt_tx.h"
+#include "led_strip_encoder.h"
 #define PCA_ADDRESS 0xC0
 
 ///////////////////////////////
-#define BLINK_GPIO 8 // LED_SIGNAL
-#define CONFIG_BLINK_LED_RMT_CHANNEL 0
-#define CONFIG_BLINK_PERIOD 1000
+// #define BLINK_GPIO 8 // LED_SIGNAL
+// #define CONFIG_BLINK_LED_RMT_CHANNEL 0
+// #define CONFIG_BLINK_PERIOD 1000
 
-uint8_t s_led_state = 0;
-led_strip_t *pStrip_a;
+// uint8_t s_led_state = 0;
+// led_strip_t *pStrip_a;
 
-void blink_led(void)
-{
-    /* If the addressable LED is enabled */
-    //if (s_led_state) {
-        /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-        pStrip_a->set_pixel(pStrip_a, 0, LED_BRIGHTNESS, 0, 0);
-        pStrip_a->set_pixel(pStrip_a, 1, 0, LED_BRIGHTNESS, 0);
-        pStrip_a->set_pixel(pStrip_a, 2, 0, 0, LED_BRIGHTNESS);
-        /* Refresh the strip to send data */
-        pStrip_a->refresh(pStrip_a, 100);
-    //} else {
-        /* Set all LED off to clear all pixels */
-        //pStrip_a->clear(pStrip_a, 50);
-    //}
-}
 
+#define RMT_LED_STRIP_RESOLUTION_HZ 10000000 // 10MHz resolution, 1 tick = 0.1us (led strip needs a high resolution)
+#define RMT_LED_STRIP_GPIO_NUM      8
+
+#define EXAMPLE_LED_NUMBERS         3
+#define EXAMPLE_CHASE_SPEED_MS      10
+
+//static const char *TAG = "example";
+
+static uint8_t led_strip_pixels[EXAMPLE_LED_NUMBERS * 3];
+
+
+// void blink_led(void)
+// {
+//     /* If the addressable LED is enabled */
+//     //if (s_led_state) {
+//         /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
+//         pStrip_a->set_pixel(pStrip_a, 0, LED_BRIGHTNESS, 0, 0);
+//         pStrip_a->set_pixel(pStrip_a, 1, 0, LED_BRIGHTNESS, 0);
+//         pStrip_a->set_pixel(pStrip_a, 2, 0, 0, LED_BRIGHTNESS);
+//         /* Refresh the strip to send data */
+//         pStrip_a->refresh(pStrip_a, 100);
+//     //} else {
+//         /* Set all LED off to clear all pixels */
+//         //pStrip_a->clear(pStrip_a, 50);
+//     //}
+// }
+rmt_channel_handle_t led_chan = NULL;
+rmt_encoder_handle_t led_encoder = NULL;
 void configure_led(void)
 {
-    ESP_LOGI(TAG, "Example configured to blink addressable LED!");
-    /* LED strip initialization with the GPIO and pixels number*/
-    pStrip_a = led_strip_init(CONFIG_BLINK_LED_RMT_CHANNEL, BLINK_GPIO, 3);
-    /* Set all LED off to clear all pixels */
-    pStrip_a->clear(pStrip_a, 50);
+    // ESP_LOGI(TAG, "Example configured to blink addressable LED!");
+    // /* LED strip initialization with the GPIO and pixels number*/
+    // pStrip_a = led_strip_init(CONFIG_BLINK_LED_RMT_CHANNEL, BLINK_GPIO, 3);
+    // /* Set all LED off to clear all pixels */
+    // pStrip_a->clear(pStrip_a, 50);
+
+
+    
+    ESP_LOGI(TAG, "Create RMT TX channel");
+    //rmt_channel_handle_t led_chan = NULL;
+    rmt_tx_channel_config_t tx_chan_config = {
+        .clk_src = RMT_CLK_SRC_DEFAULT, // select source clock
+        .gpio_num = RMT_LED_STRIP_GPIO_NUM,
+        .mem_block_symbols = 64, // increase the block size can make the LED less flickering
+        .resolution_hz = RMT_LED_STRIP_RESOLUTION_HZ,
+        .trans_queue_depth = 4, // set the number of transactions that can be pending in the background
+    };
+    ESP_ERROR_CHECK(rmt_new_tx_channel(&tx_chan_config, &led_chan));
+
+    ESP_LOGI(TAG, "Install led strip encoder");
+    //rmt_encoder_handle_t led_encoder = NULL;
+    led_strip_encoder_config_t encoder_config = {
+        .resolution = RMT_LED_STRIP_RESOLUTION_HZ,
+    };
+    ESP_ERROR_CHECK(rmt_new_led_strip_encoder(&encoder_config, &led_encoder));
+
+    ESP_LOGI(TAG, "Enable RMT TX channel");
+    ESP_ERROR_CHECK(rmt_enable(led_chan));
+
+    ESP_LOGI(TAG, "Start LED rainbow chase");
+    
 }
 
+void led_deinit(void)
+{
+    //led_strip_denit(pStrip_a);
 
+}
 LEDType LEDValues = {{0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01,0x01}};
 LEDStatesType LEDState;
 IndicatorLEDType Indicators;
@@ -65,12 +109,31 @@ void WriteLEDStatus(void)
     //ESP_LOGI(TAG, "(%d,%d,%d)(%d,%d,%d)(%d,%d,%d)",LEDValues.Bytes[BatteryLEDRed],LEDValues.Bytes[BatteryLEDGreen],LEDValues.Bytes[BatteryLEDBlue],LEDValues.Bytes[NetworkLEDRed],LEDValues.Bytes[NetworkLEDGreen],LEDValues.Bytes[NetworkLEDBlue],LEDValues.Bytes[LocationLEDRed],LEDValues.Bytes[LocationLEDGreen],LEDValues.Bytes[LocationLEDBlue]);
     //if (s_led_state) {
         /* Set the LED pixel using RGB from 0 (0%) to 255 (100%) for each color */
-        pStrip_a->set_pixel(pStrip_a, 0, LEDValues.Bytes[BatteryLEDRed],LEDValues.Bytes[BatteryLEDGreen],LEDValues.Bytes[BatteryLEDBlue]);
-        pStrip_a->set_pixel(pStrip_a, 1, LEDValues.Bytes[NetworkLEDRed],LEDValues.Bytes[NetworkLEDGreen],LEDValues.Bytes[NetworkLEDBlue]);
-        pStrip_a->set_pixel(pStrip_a, 2, LEDValues.Bytes[LocationLEDRed],LEDValues.Bytes[LocationLEDGreen],LEDValues.Bytes[LocationLEDBlue]);
-        /* Refresh the strip to send data */
-        pStrip_a->refresh(pStrip_a, 100);
+        // pStrip_a->set_pixel(pStrip_a, 0, LEDValues.Bytes[BatteryLEDRed],LEDValues.Bytes[BatteryLEDGreen],LEDValues.Bytes[BatteryLEDBlue]);
+        // pStrip_a->set_pixel(pStrip_a, 1, LEDValues.Bytes[NetworkLEDRed],LEDValues.Bytes[NetworkLEDGreen],LEDValues.Bytes[NetworkLEDBlue]);
+        // pStrip_a->set_pixel(pStrip_a, 2, LEDValues.Bytes[LocationLEDRed],LEDValues.Bytes[LocationLEDGreen],LEDValues.Bytes[LocationLEDBlue]);
+        // /* Refresh the strip to send data */
+        // pStrip_a->refresh(pStrip_a, 100);
    // }
+    rmt_transmit_config_t tx_config = {
+        .loop_count = 0, // no transfer loop
+    };
+    led_strip_pixels[0] = LEDValues.Bytes[BatteryLEDGreen];//green;
+    led_strip_pixels[1] = LEDValues.Bytes[BatteryLEDRed];//red;
+    led_strip_pixels[2] = LEDValues.Bytes[BatteryLEDBlue];//blue;
+
+    led_strip_pixels[3] = LEDValues.Bytes[NetworkLEDGreen];//green;
+    led_strip_pixels[4] = LEDValues.Bytes[NetworkLEDRed];//red;
+    led_strip_pixels[5] = LEDValues.Bytes[NetworkLEDBlue];//blue;
+
+    led_strip_pixels[6] = LEDValues.Bytes[LocationLEDGreen];//green;
+    led_strip_pixels[7] = LEDValues.Bytes[LocationLEDRed];//red;
+    led_strip_pixels[8] = LEDValues.Bytes[LocationLEDBlue];//blue;
+
+    // }
+    // Flush RGB values to LEDs
+    ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, led_strip_pixels, sizeof(led_strip_pixels), &   tx_config));
+    ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, 100));
 
         
    

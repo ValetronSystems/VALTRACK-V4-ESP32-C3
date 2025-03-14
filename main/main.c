@@ -589,7 +589,7 @@ unsigned char SosAlert=0;
 
 unsigned char ClockSource=0;
 
-const char SYS_VERSION[]="VALTRACK-V4-19-02-23";
+const char SYS_VERSION[]="VALTRACK-V4-21-02-25";
 
 char devid[16] = DEVICE_ID;
 char bstr[250];
@@ -698,7 +698,7 @@ const char dummyevent[]={"0D00000000000000000033002300000000"};
 unsigned long CheckSum,RLength;
 unsigned short datalength;
 unsigned short topiclength;
-char topic[30];
+char topic[40];
 
 HWEventDataType *pPacket;
 char str[2500];
@@ -922,6 +922,12 @@ unsigned char SendATCommand(char *pCommand,char *pResponse1,char *pResponse2, un
     }
     
 }
+void ForceToSleep(void)
+{
+    ClearPackets();
+    MotionTimer=TIME_TO_SLEEP+1;
+
+}
 char BatteryString[25];
 void CheckBattery(void)
 {
@@ -979,10 +985,10 @@ void CheckSignalStrength(void)
         osDelay(500);
     //#endif
     pToken = MapForward(Buff2,70,(char*)"+CSQ:",5);
-    pToken+=6;
+    
     if(pToken != NULL)
     {
-        
+        pToken+=6;    
         //while(*pToken != '"')pToken--;
         //pToken++;
         
@@ -1203,7 +1209,7 @@ void PostReboot(void)
         DebugPrint("Entered-PostReboot\r\n"); 
     #endif
 
-    LoadTimeStamp(&CPacket);
+    LoadGPSTimeStamp(&CPacket);
     CPacket.GEvent.EventType = REBOOT_PING;
     //CheckSum = GetCheckSum(CPacket.Bytes,34);
     //CPacket.GEvent.CheckSum[1]=GetAscii(CheckSum&0x0F);  
@@ -1292,9 +1298,9 @@ unsigned char CheckNetwork(void)
     //unsigned long LoopCount = 0;
     unsigned char Retries=0;
     char*pToken1,*pToken2,*pToken3, *pToken4;
- 
+    osDelay(1000);
     CHECK_NETWORK_AGAIN:    
-
+    
     ResetBuffer();
     Print("AT+CREG?\r\n");
  
@@ -1326,6 +1332,7 @@ unsigned char CheckNetwork(void)
     pToken2 = MapForward(Buff2,BUFF2_SIZE,(char*)"0,2",3);
     pToken3 = MapForward(Buff2,BUFF2_SIZE,(char*)"0,3",3);
     pToken4 = MapForward(Buff2,BUFF2_SIZE,(char*)"0,4",3);
+    pToken4 = MapForward(Buff2,BUFF2_SIZE,(char*)"0,6",3);
     
     if( (pToken1 != NULL) || (pToken2 != NULL) || (pToken3 != NULL) || (pToken4 != NULL) )
     {            
@@ -1336,7 +1343,7 @@ unsigned char CheckNetwork(void)
         #endif
 
         
-        if(++Retries<20)
+        if(++Retries<60)
         {
             osDelay(1000);
             goto CHECK_NETWORK_AGAIN;
@@ -2373,16 +2380,16 @@ unsigned char InitGSM(void)
                 
                 SendATCommand("AT+CGNSSPWR=1\r\n","OK","ERROR",60);
                 SendATCommand("AT+CGNSSPWR?\r\n","OK","ERROR",60);
-                SendATCommand("AT+CGNSSPORTSWITCH=1,1\r\n","OK","ERROR",5);
-                SendATCommand("AT+CGNSSTST=1\r\n","OK","ERROR",30);
-                SendATCommand("AT+CGPSCOLD\r\n","OK","ERROR",30);
+                // SendATCommand("AT+CGNSSPORTSWITCH=1,1\r\n","OK","ERROR",5);
+                // SendATCommand("AT+CGNSSTST=1\r\n","OK","ERROR",30);
+                // SendATCommand("AT+CGPSCOLD\r\n","OK","ERROR",30);
                 //SendATCommand("AT+CGNSSFTM=1\r\n","OK","ERROR",30);
                 //SendATCommand("AT+CGNSSINFO\r\n","OK","ERROR",30);
-                SendATCommand("AT+CGNSSIPR?\r\n","OK","ERROR",30);
-                SendATCommand("AT+SIMCOMATI\r\n","OK","ERROR",30);
-                 osDelay(5000);
-                 SendATCommand("AT+BT\r\n","OK","ERROR",30);
-                osDelay(5000);
+                // SendATCommand("AT+CGNSSIPR?\r\n","OK","ERROR",30);
+                // SendATCommand("AT+SIMCOMATI\r\n","OK","ERROR",30);
+                //  osDelay(5000);
+                //  SendATCommand("AT+BT\r\n","OK","ERROR",30);
+                // osDelay(5000);
                 
                 
             #endif
@@ -2470,7 +2477,17 @@ unsigned char InitGSM(void)
         SendATCommand("ATS0=003\r\n","OK","ERROR",3);
     #endif
     
+    // TAISYS
+    // SendATCommand("AT+ENSTK=1\r\n","OK","ERROR",3);
+    // SendATCommand("AT+MSTK?\r\n","OK","ERROR",3);
+    // SendATCommand("AT+MSTK=0,0\r\n","OK","ERROR",3);
+    // SendATCommand("AT+MSTK=11,810301250082028281830100\r\n","OK","ERROR",3);
+    // SendATCommand("AT+MSTK=4,D30782020181900101\r\n","OK","ERROR",3);
+    // SendATCommand("AT+MSTK=11,810301240082028281830100900101\r\n","OK","ERROR",3); // First profile
+    // SendATCommand("AT+MSTK=11,810301240082028281830100900102\r\n","OK","ERROR",3); // Second profile
+    // TAISYS END
 
+    SendATCommand("AT+CPSI?\r\n","OK","ERROR",3); // For checking network info
 
     #ifdef SIM800
         SendATCommand("AT&W0\r\n","OK","ERROR",3);
@@ -2553,9 +2570,17 @@ unsigned char InitGSM(void)
     //GetNetworkData();
     CheckNetworkLocation();
     
-    
+    #ifndef SIM7672
+    SendATCommand("AT+CSCLK=2\r\n","OK","ERROR",5);
+    #else
+    SendATCommand("AT+CSCLK=0\r\n","OK","ERROR",5);// SIM7672 takes it seriously and doesnt respond
+    #endif
     // CheckNetworkLocation();
-   
+    
+    #ifdef EXT_ANT_ENABLED
+        XCheckGPS();    // Here for getting time stamp in reboot ping
+    #endif
+    
     return 0;
 }
 
@@ -2582,7 +2607,7 @@ void InitGPIO(void)
     //set as output mode
     io_conf.mode = GPIO_MODE_OUTPUT;
     //bit mask of the pins that you want to set,e.g.GPIO18/19
-    io_conf.pin_bit_mask = GPIO_LED_SIGNAL;
+    io_conf.pin_bit_mask = GPIO_LED_SIGNAL_PIN_SEL;
     //disable pull-down mode
     io_conf.pull_down_en = 0;
     //disable pull-up mode
@@ -2591,6 +2616,9 @@ void InitGPIO(void)
     gpio_config(&io_conf);
 
 #ifdef ENABLE_TPS_CONTROL
+
+    // gpio_reset_pin(GPIO_NUM_4); Didnt have any effect
+
     //////////////////////////////////////////////////////////GPIO
     //zero-initialize the config structure.
     //gpio_config_t io_conf = {};
@@ -3161,12 +3189,161 @@ void NetworkJSONData(char *pData)
 //        NetworkData[2].Fields.lac
 //    );
 }
+typedef enum TowerDataTypes
+{
+    NON_INFO_TYPE,
+    INTRA_INFO_TYPE
+}TowerDataType;
+// void GetNetworkData(void)
+// {
+//     char *pToken,*pToken1,*pToken2;
+//     unsigned char i,j,retries;
+//     NetworkDataType *pNetworkData;
+//     TowerDataType TowerData=NON_INFO_TYPE;
+//     retries = 0;
+// RETRY_NWD:    
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI?\r\n"); 
+//     osDelay(2000);
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI=1\r\n"); 
+//     osDelay(2000);    
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI?\r\n");    
+//     LoopTimeout1 = 0;
+    
+//     while(1)
+//     {
+//         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCINONINFO:",15);
+//         if(pToken != NULL)
+//         {
+//             TowerData=NON_INFO_TYPE;
+//             break;
+//         }
+//         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCIINTRAINFO:",17);
+//         if(pToken != NULL)
+//         {
+//             TowerData=INTRA_INFO_TYPE;
+//             break;
+//         }
+//         if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>10))
+//         {       return; }
+        
+//     }
+//     osDelay(5000);
+//     j=0;
+//     // if(TowerData==NON_INFO_TYPE)
+//     {
+//         pToken2 = MapForward(Buff2,BUFF2_SIZE,(char*)"MCC-MNC",7);
+//         for(i=0;i<9;i++) // Check for 9 towers
+//         {   
 
+//             pToken1 = MapForward(pToken2,BUFF2_SIZE,(char*)"MCC-MNC",7);
+
+//             sprintf(cmdstr,"+CNETCINONINFO: %d",i);
+//             pToken = MapForward(pToken1-25,25,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length
+//                 if(j>=NETWORK_DATA_SIZE) 
+//                     break;
+//             }
+//             sprintf(cmdstr,"+CNETCIINTRAINFO: %d",i);
+//             pToken = MapForward(pToken1-25,25,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length
+//                 if(j>=NETWORK_DATA_SIZE) 
+//                     break;
+//             }
+//             sprintf(cmdstr,"+CNETCISRVINFO: %d",i);
+//             pToken = MapForward(pToken1-25,25,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length
+//                 if(j>=NETWORK_DATA_SIZE) 
+//                     break;
+//             }
+//             pToken2=pToken1+50;
+//         }
+//     }
+//     // else if(TowerData==INTRA_INFO_TYPE)
+//     // {
+//     //     // j=0;
+//     //     for(i=0;i<9;i++) // Check for 9 towers
+//     //     {
+//     //         sprintf(cmdstr,"+CNETCIINTRAINFO: %d",i);
+//     //         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+//     //         if(pToken != NULL)
+//     //         {
+//     //             printf("found = %d\n",i);
+//     //             pNetworkData = &NetworkData[j];
+//     //             HandleNetworkTowerData(pToken,pNetworkData);
+                
+//     //             j++; // j is network array length
+//     //             if(j>=NETWORK_DATA_SIZE) 
+//     //                 break;
+//     //         }
+//     //     }
+//     //     if(j<NETWORK_DATA_SIZE) 
+//     //     {
+//     //         sprintf(cmdstr,"+CNETCISRVINFO: ");
+//     //         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+//     //         if(pToken != NULL)
+//     //         {
+//     //             printf("found = %d\n",i);
+                
+//     //             pNetworkData = &NetworkData[j];
+//     //             HandleNetworkTowerData(pToken,pNetworkData);
+                
+//     //             j++; // j is network array length           
+                
+//     //         }
+//     //     }
+
+//     // }
+//     TowerCount = j;// For reading later
+//     if(j == 0 && retries  == 0)
+//     {
+//         retries++;
+//         goto RETRY_NWD; // Try again once more if no tower data arrived
+//     }
+//     NetworkJSONData(TowerPacket);
+// //    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 1",17);
+// //    if(pToken != NULL)
+// //    {
+// //        pNetworkData = &NetworkData[1];
+// //        HandleNetworkTowerData(pToken,pNetworkData);
+// //    }
+// //    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 2",17);
+// //    if(pToken != NULL)
+// //    {
+// //        pNetworkData = &NetworkData[2];
+// //        HandleNetworkTowerData(pToken,pNetworkData);
+// //    }
+     
+// }
 void GetNetworkData(void)
 {
     char *pToken;
     unsigned char i,j,retries;
     NetworkDataType *pNetworkData;
+    TowerDataType TowerData=NON_INFO_TYPE;
     retries = 0;
 RETRY_NWD:    
     
@@ -3186,27 +3363,102 @@ RETRY_NWD:
     {
         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCINONINFO:",15);
         if(pToken != NULL)
-                break;
+        {
+            TowerData=NON_INFO_TYPE;
+            break;
+        }
+        pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCIINTRAINFO:",17);
+        if(pToken != NULL)
+        {
+            TowerData=INTRA_INFO_TYPE;
+            break;
+        }
         if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>10))
         {       return; }
         
     }
     osDelay(5000);
     j=0;
-    for(i=0;i<9;i++) // Check for 9 towers
+    // for(int x=0;x<BUFF2_SIZE;x++)
+    // {
+    //     printf("%c",Buff2[x]);
+    // }
+
+    sprintf(cmdstr,"+CNETCISRVINFO: ");
+    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,16);
+    if(pToken != NULL)
+    {   
+
+        // printf("found = srv - %c%c-%c%c%c%c\n",pToken[0],pToken[1],pToken[16],pToken[17],pToken[18],pToken[19]);
+        printf("found srv\n");
+        pToken[17]='0';
+        pToken[18]=',';
+        pToken[19]=' ';
+        // pToken[20]=',';
+        
+        
+        pNetworkData = &NetworkData[j];
+        HandleNetworkTowerData(pToken,pNetworkData);
+        
+        j++; // j is network array length           
+        
+    }
+    // if(TowerData==NON_INFO_TYPE)
     {
-        sprintf(cmdstr,"+CNETCINONINFO: %d",i);
-        pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
-        if(pToken != NULL)
+        
+        for(i=0;i<9;i++) // Check for 9 towers
         {
-            printf("found = %d\n",i);
-            pNetworkData = &NetworkData[j];
-            HandleNetworkTowerData(pToken,pNetworkData);
-            
-            j++; // j is network array length
-            if(j>=NETWORK_DATA_SIZE) 
-                break;
+            sprintf(cmdstr,"+CNETCINONINFO: %d",i);
+            pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+            if(pToken != NULL)
+            {
+                printf("found noninfo = %d\n",i);
+                pNetworkData = &NetworkData[j];
+                HandleNetworkTowerData(pToken,pNetworkData);
+                
+                j++; // j is network array length
+                if(j>=NETWORK_DATA_SIZE) 
+                    break;
+            }
         }
+    }
+    // for(int x=0;x<BUFF2_SIZE;x++)
+    // {
+    //     printf("%c",Buff2[x]);
+    // }
+    // else if(TowerData==INTRA_INFO_TYPE)
+    {
+        // j=0;
+        for(i=0;i<9;i++) // Check for 9 towers
+        {
+            sprintf(cmdstr,"+CNETCIINTRAINFO: %d",i);
+            pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,19);
+            if(pToken != NULL)
+            {
+                printf("found intrainfo= %d\n",i);
+                pNetworkData = &NetworkData[j];
+                HandleNetworkTowerData(pToken,pNetworkData);
+                
+                j++; // j is network array length
+                if(j>=NETWORK_DATA_SIZE) 
+                    break;
+            }
+        }
+        // for(int x=0;x<BUFF2_SIZE;x++)
+        // {
+        //     printf("%c",Buff2[x]);
+        // }
+        // printf("before j=%d<\n",j);
+        // if(j<NETWORK_DATA_SIZE) 
+        {
+            // printf("inside j<\n");
+            
+        }
+        // for(int x=0;x<BUFF2_SIZE;x++)
+        // {
+        //     printf("%c",Buff2[x]);
+        // }
+
     }
     TowerCount = j;// For reading later
     if(j == 0 && retries  == 0)
@@ -3229,6 +3481,122 @@ RETRY_NWD:
 //    }
      
 }
+// void GetNetworkData(void)
+// {
+//     char *pToken;
+//     unsigned char i,j,retries;
+//     NetworkDataType *pNetworkData;
+//     TowerDataType TowerData=NON_INFO_TYPE;
+//     retries = 0;
+// RETRY_NWD:    
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI?\r\n"); 
+//     osDelay(2000);
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI=1\r\n"); 
+//     osDelay(2000);    
+    
+//     ResetBuffer();
+//     Print( "AT+CNETCI?\r\n");    
+//     LoopTimeout1 = 0;
+    
+//     while(1)
+//     {
+//         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCINONINFO:",15);
+//         if(pToken != NULL)
+//         {
+//             TowerData=NON_INFO_TYPE;
+//             break;
+//         }
+//         pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CNETCIINTRAINFO:",17);
+//         if(pToken != NULL)
+//         {
+//             TowerData=INTRA_INFO_TYPE;
+//             break;
+//         }
+//         if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>10))
+//         {       return; }
+        
+//     }
+//     osDelay(5000);
+//     j=0;
+//     if(TowerData==NON_INFO_TYPE)
+//     {
+        
+//         for(i=0;i<9;i++) // Check for 9 towers
+//         {
+//             sprintf(cmdstr,"+CNETCINONINFO: %d",i);
+//             pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length
+//                 if(j>=NETWORK_DATA_SIZE) 
+//                     break;
+//             }
+//         }
+//     }
+//     else if(TowerData==INTRA_INFO_TYPE)
+//     {
+//         // j=0;
+//         for(i=0;i<9;i++) // Check for 9 towers
+//         {
+//             sprintf(cmdstr,"+CNETCIINTRAINFO: %d",i);
+//             pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length
+//                 if(j>=NETWORK_DATA_SIZE) 
+//                     break;
+//             }
+//         }
+//         if(j<NETWORK_DATA_SIZE) 
+//         {
+//             sprintf(cmdstr,"+CNETCISRVINFO: ");
+//             pToken = MapForward(Buff2,BUFF2_SIZE,(char*)cmdstr,17);
+//             if(pToken != NULL)
+//             {
+//                 printf("found = %d\n",i);
+                
+//                 pNetworkData = &NetworkData[j];
+//                 HandleNetworkTowerData(pToken,pNetworkData);
+                
+//                 j++; // j is network array length           
+                
+//             }
+//         }
+
+//     }
+//     TowerCount = j;// For reading later
+//     if(j == 0 && retries  == 0)
+//     {
+//         retries++;
+//         goto RETRY_NWD; // Try again once more if no tower data arrived
+//     }
+//     NetworkJSONData(TowerPacket);
+// //    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 1",17);
+// //    if(pToken != NULL)
+// //    {
+// //        pNetworkData = &NetworkData[1];
+// //        HandleNetworkTowerData(pToken,pNetworkData);
+// //    }
+// //    pToken = MapForward(Buff2,BUFF2_SIZE,(unsigned char*)"+CNETCINONINFO: 2",17);
+// //    if(pToken != NULL)
+// //    {
+// //        pNetworkData = &NetworkData[2];
+// //        HandleNetworkTowerData(pToken,pNetworkData);
+// //    }
+     
+// }
 // void NetworkJSONData(char *pData)
 // {
 //     sprintf((void*)pData,"[{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"},{\"cid\":\"%s\",\"mcc\":\"%s\",\"mnc\":\"%s\",\"lac\":\"%s\"}]",
@@ -3255,19 +3623,20 @@ query[0] = 0;
 #ifdef PAYLOAD_NORMAL
     *pDataLength = sprintf((void*)pStr,
     "{\"devid\":\"%s\",\
+\"time\":\"20%02d-%02d-%02d %02d:%02d:%02d\",\
 \"etype\":\"%s\",\
 \"lat\":\"%f\",\
 \"lon\":\"%f\",\
 \"vbat\":\"%f\",\
-\"speed\":\"%s\"%s%s}",
+\"speed\":\"%f\"%s%s%s}",
         
         IMEI,
-        //pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.Hours,pPacket->GEvent.Minutes,pPacket->GEvent.Seconds,
+        pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.Hours,pPacket->GEvent.Minutes,pPacket->GEvent.Seconds,
         (ETypes[pPacket->GEvent.EventType].Bytes),
         pPacket->GEvent.Lat,//tfLat,//pPacket->GEvent.fLat,
         pPacket->GEvent.Long,//tfLong,//pPacket->GEvent.fLong,
         pPacket->GEvent.Voltage,//ChargeVoltage,
-        //pPacket->GEvent.Speed,//pPacket->GEvent.Speed//,
+        pPacket->GEvent.Speed,//pPacket->GEvent.Speed//,
         TowerPacket,
         NLPacket,
         query
@@ -3280,39 +3649,7 @@ void ConvertToJSON(HWEventDataType *pPacket,unsigned short *pDataLength, char *p
     unsigned short tDataLength=0;
     unsigned char topic[50];
 query[0] = 0;
-#ifdef PAYLOAD_MUKESH_NEPAL
 
-    *pDataLength = sprintf((void*)pStr,
-"{"\
-"\"payload\": {"\
-"\"gps\": {"\
-"\"gpslock\": \"1/0\","\
-"\"longitude\": \"%lf\","\
-"\"latitude\": \"%lf\""\
-"},"\
-"\"Vbat\": \"%lf\","\
-"\"Vin\": \"12.6v\","\
-"\"ignition\": \"1/0\","\
-"\"fuel\": \"value \","\
-"\"RS232\": \"value \","\
-"\"speed\": \"%f \","\
-"\"in1\": \"0/1\","\
-"\"AD2\": \"value \","\
-"\"time\":\"20%d-%d-%d %d:%d:%d\",}}",
-// GPS lock
-pPacket->GEvent.Long,
-pPacket->GEvent.Lat,
-pPacket->GEvent.Voltage,// Vbat
-// 12V IN
-// Ignition
-//fuel
-//RS232
-pPacket->GEvent.Speed,
-//In1
-//AD2,
-pPacket->GEvent.Year,pPacket->GEvent.Month,pPacket->GEvent.Date,pPacket->GEvent.Hours,pPacket->GEvent.Minutes,pPacket->GEvent.Seconds
-);
-#endif
 
 #ifdef PAYLOAD_NORMAL
 
@@ -3716,8 +4053,15 @@ char XHTTP_Request(char *pFilename, unsigned char pingtype)
         {       goto exit; }
         
     }
+    // SendATCommand("AT+CFUN=1\r\n","OK","ERROR",5); // Sleep exit
     osDelay(1000);
-
+    if(CheckNetwork() == 1)
+    {
+        ESP_LOGI(TAG,"Exiting from XHTTP due to no network\n");
+        ForceToSleep();
+        goto exit;
+    }
+    
 
     sprintf((void*)str,"AT+CGDCONT=1,\"IP\",\"%s\"\r\n",Params.Fields.APNName);
     SendATCommand(str,"OK","ERROR",5);
@@ -3868,11 +4212,11 @@ char XHTTP_Request(char *pFilename, unsigned char pingtype)
     LoopTimeout1 = 0;
     while(1)
     {
-        #ifdef SHEETS_ENABLED
-        if(MapForward(Buff2,BUFF2_SIZE,(char*)"Moved",5) != NULL)
-        #else
-        if(MapForward(Buff2,BUFF2_SIZE,(char*)"logid",5) != NULL)
-        #endif
+        // #ifdef SHEETS_ENABLED
+        // if(MapForward(Buff2,BUFF2_SIZE,(char*)"Moved",5) != NULL)
+        // #else
+        if( (MapForward(Buff2,BUFF2_SIZE,(char*)"logid",5) != NULL) || (MapForward(Buff2,BUFF2_SIZE,(char*)"Moved",5) != NULL))
+        // #endif
         {
             ConnectivityTimer = 0;
             osDelay(1000);//DelayProc(50000);
@@ -4002,7 +4346,13 @@ SUCCESS:
         {       break; }
         
     }       
-
+    // SendATCommand("AT+CFUN=0\r\n","OK","ERROR",5);
+    #ifndef SIM7672
+    SendATCommand("AT+CSCLK=2\r\n","OK","ERROR",5);
+    #else
+    SendATCommand("AT+CSCLK=0\r\n","OK","ERROR",5);// SIM7672 takes it seriously and doesnt respond
+    #endif
+    
     //Print4("SUCCESS\r\n");
     retVal=0;
     return 0;
@@ -4018,7 +4368,11 @@ exit:
         {       break; }
         
     }
-    
+    #ifndef SIM7672
+    SendATCommand("AT+CSCLK=2\r\n","OK","ERROR",5);
+    #else
+    SendATCommand("AT+CSCLK=0\r\n","OK","ERROR",5);// SIM7672 takes it seriously and doesnt respond
+    #endif
     //Print4("FAILED\r\n");
     
     /*if(PGEvent.EventType == 35 && retries >=1 && Params.Fields.PingInterval <=10)
@@ -4552,12 +4906,15 @@ const unsigned char PingPacket[2]=
 {
     0xC0,0x00
 };
+
+#ifdef SIM7070
+
 void XCheckGPS(void)
 {
     char *pToken;
     // char *pData; // TBD
 
-    SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
+    SendATCommand("AT+CGNSINF\r\n","OK","ERROR",3);
     osDelay(500);
 
 
@@ -4569,14 +4926,14 @@ void XCheckGPS(void)
     // else
     //     GPSStatus = 'A';
     GPSStatus = 'A';
-    if(MapForward(Buff2,BUFF2_SIZE,(char*)"+CGPSINFO: ,,",13) != NULL)
+    if(MapForward(Buff2,BUFF2_SIZE,(char*)"+CGNSINF: 0,,",13) != NULL)
         GPSStatus = 'V';
     else if(MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL)
         GPSStatus = 'V';
 
     UpdateLocation(GPSStatus);
 
-    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CGPSINFO:",10);
+    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CGNSINF:",9);
     if(pToken != NULL)
     {
         unsigned char in = 0;
@@ -4604,6 +4961,113 @@ void XCheckGPS(void)
     Speed[9] = '\0';
 
 }
+
+#else // SIM7070
+
+void XCheckGPS(void)
+{
+    char *pToken;
+    float tfSpeed=0;
+    // char *pData; // TBD
+
+    SendATCommand("AT+CGPSINFO\r\n","OK","ERROR",3);
+    osDelay(500);
+    //VALTRACK-V4-VTS: AT+CGPSINFO
+//+CGPSINFO: ,,,,,,,,
+    // AT+CGPSINFO
+    // sprintf(Buff2,"+CGPSINFO: 1528.20726,N,07501.25250,E,220225,080229.00,624.4,0.000,52.27");
+// +CGPSINFO: 1528.20726,N,07501.25250,E,220225,080229.00,624.4,0.000,52.27
+
+    Count=0;
+
+    // if(MapForward(Buff2,BUFF2_SIZE,(char*)"+CGPSINFO: ,,",13) != NULL)
+    //     GPSStatus = 'V';
+    // else
+    //     GPSStatus = 'A';
+    GPSStatus = 'A'; // Necessary as CGPS info doesnt return GPSStatus=A or V. 
+    if(MapForward(Buff2,BUFF2_SIZE,(char*)"+CGPSINFO: ,,",13) != NULL)
+        GPSStatus = 'V';
+    else if(MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL)
+        GPSStatus = 'V';
+
+    UpdateLocation(GPSStatus);
+
+    pToken = MapForward(Buff2,BUFF2_SIZE,(char*)"+CGPSINFO:",10);
+    if(pToken != NULL)
+    {
+        unsigned char in = 0;
+        f=0;
+        //pData = tBuff; // TBD
+        memset(Lat,0,sizeof(Lat));
+        memset(Long,0,sizeof(Long));
+        memset(Speed,0,sizeof(Speed));
+        memset(Altitude,0,sizeof(Altitude));
+        
+        sscanf(pToken,"+CGPSINFO: %f,%c,%f,%c,%[^,],%[^,],%f,%f,%f\r\n",&fLat,&NS,&fLong,&EW,GPSDate,GPSTime,&fAltitude,&tfSpeed,&fCourse);
+        // while(1)
+        // {
+        if(GPSStatus!='A')
+        {
+            memset(Lat,0,sizeof(Lat));
+            memset(Long,0,sizeof(Long));
+        }
+        // pData = tBuff;
+        // HeaderReceived = 0;
+        // CommaCount = 0;
+        // f = 0;						
+        // sscanf( (void*)Lat, "%f", &fLat);
+        // sscanf( (void*)Long, "%f", &fLong);
+        // sscanf( (void*)Altitude, "%f", &fAltitude);
+        // sscanf( (void*)Speed, "%f", &tfSpeed);
+        if(tfSpeed>1)
+            fSpeed=tfSpeed*1.852;// nM to kmph 
+        else
+            fSpeed=0;
+        // sscanf( (void*)Course, "%f", &fCourse);
+
+        sscanf( (void*)GPSDate, "%2d%2d%2d", (int*)&GPSDay,(int*)&GPSMonth,(int*)&GPSYear);
+                                
+        sscanf( (void*)GPSTime, "%2d%2d%2d", (int*)&GPSHours,(int*)&GPSMinutes,(int*)&GPSSeconds);
+        // printf("%s,%d,%d,%d\n",GPSDate,GPSDay,GPSMonth,GPSYear);
+        // printf("%s,%d,%d,%d\n",GPSTime,GPSHours,GPSMinutes,GPSSeconds);
+
+        if(NS == 'S')fLat *= -1;
+        if(EW == 'W')fLong *= -1;
+        fLat = GPRMC2Degrees(fLat);
+        fLong = GPRMC2Degrees(fLong); 
+        sprintf
+        (
+            (void*)Link,
+            "http://maps.google.com/maps?z=18&q=%f,%f",
+            fLat,fLong
+        );
+            
+        if(GPSStatus == 'A')
+        {
+            pfLat = fLat;
+            pfLong = fLong;
+        }
+        if(GPSStatus != prevGPSStatus)
+        {
+            UpdateLocation(GPSStatus);
+            prevGPSStatus = GPSStatus;
+        }    
+        //     HandleGPSINFData(pToken[in]);
+        //     if(pToken[in] == 0x0D)break;
+        //     in++; if(in >200)break;
+            
+        // }
+        if(GPSStatus == 'A')
+        {
+            // ESP_LOGW(TAG,"Date %s",GPSDate);
+            ESP_LOGW(TAG,"Time now is %d-%d-20%d,%02d:%02d:%02d",GPSDay,GPSMonth,GPSYear,GPSHours,GPSMinutes,GPSSeconds);
+            ESP_LOGW(TAG,"Location is %f,%f,S=%f,A=%f,C=%f",fLat,fLong,fSpeed,fAltitude,fCourse);
+        }
+    }
+    Speed[9] = '\0';
+
+}
+#endif // SIM7070
 
 #ifdef SIM7600 //#ifdef SSL_BROKER
 char XMQTT_Request(char *pFilename, unsigned char pingtype)
@@ -4811,7 +5275,7 @@ char XMQTT_Request(char *pFilename, unsigned char pingtype)
             
  
             //if(tfLat == 0)tfLat = 8;
-            memset(str,0,1500);
+            memset(str,0,sizeof(str));
             //pPacket->GEvent.Speed[9] = '\0';
             //devid[8] = '\0';
             topiclength = sprintf((void*)topic,(void*)Params.Fields.MQTTTopic);
@@ -4823,13 +5287,16 @@ char XMQTT_Request(char *pFilename, unsigned char pingtype)
 //            datalength = sprintf((void*)str,
 
             ConvertToJSON(pPacket,&datalength,str);
-            
+            // datalength = sprintf(str,"x 1\ny 2\n");
+            // printf("After convert\n");
             sprintf((void*)cmdstr,"AT+CMQTTPAYLOAD=0,%d\r\n",datalength);
+            // printf("After cmdstr\n");
             if(SendATCommand(cmdstr,">","ERROR",10) != 1)
             {
                 // Dont use str here
                 goto EXIT_MQTT;
             }
+            // printf("After sendat\n");
             Print(str); 
             LoopTimeout1 = 0;
             while(1)
@@ -4847,6 +5314,7 @@ char XMQTT_Request(char *pFilename, unsigned char pingtype)
                 }
                 
             }
+            // printf("After payload\n");
             if(SendATCommand("AT+CMQTTPUB=0,1,60\r\n","OK","ERROR",10) != 1)
             {
                 sprintf((void*)str,"PUBLISH NOT OK");
@@ -4988,7 +5456,405 @@ EXIT_MQTT:
 
 
 char YMQTT_Request(char *pFilename, unsigned char pingtype)
-{}
+{
+    //char eventnumber[5];
+    //char *pResult;
+    //unsigned char retries,i;
+//    char *pToken,*pData;
+    //char *pToken1;
+    //unsigned char CheckSum,cs[2];
+    pPacket = &CPacket;
+    //retries = 0;
+    TCPRetries = 0;
+//    unsigned char encodedByte;
+//    int X; 
+    //unsigned short MQTTProtocolNameLength;
+    unsigned short MQTTClientIDLength;
+    //unsigned short MQTTUsernameLength;
+    //unsigned short MQTTPasswordLength;
+//    unsigned char k=0;
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("Entered-TCP_request\r\n"); 
+    #endif
+    
+/*
+    #ifndef STANDALONE_DEMO
+    CheckSum = GetCheckSum(pPacket->Bytes,34);
+    cs[1]=GetAscii(CheckSum&0x0F);  
+    cs[0]=GetAscii((CheckSum>>4) & 0x0F);  
+    if((pPacket->GEvent.CheckSum[0] != cs[0]) || (pPacket->GEvent.CheckSum[1] != cs[1]))
+    {
+        retVal=0;
+        return 0;
+    }
+#endif
+    */
+    
+//   RESEND_TCP:
+    WakeUp();
+    SOS = gpio_get_level(GPIO_SOS);
+    if(SOS == 0)
+    {
+        goto SUCCESS;
+    }
+    ////Print4("Resending\r\n");
+    ////IWDG_ReloadCounter();
+    ResetBuffer();
+    Print( "AAAAAAAAAAAAAT\r\n");    
+    LoopTimeout1 = 0;
+    while(1)
+    {
+        if(MapForward(Buff2,BUFF2_SIZE,(char*)"OK",2) != NULL)
+                break;
+        if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>10))
+        {       goto EXIT_MQTT; }
+        Count++;
+    }
+   
+    // RECONNECT:
+
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("CCHSTART OK-TCP_request"); 
+    #endif
+    // RESTART_MQTT:
+    
+  /////////////////////////////////////////////////////////////////////////
+    MQTTClientIDLength = strlen((void*)IMEI);//strlen(Params.Fields.MQTTClientID);
+    topiclength = sprintf((void*)topic,(void*)Params.Fields.MQTTTopic);
+    
+    SendATCommand("AT+CNACT=0,1\r\n","OK","ERROR",10);
+    
+//RECHECK_IP:    
+    if(SendATCommand("AT+CNACT?\r\n","+CNACT: 0,0,\"0.0.0.0\"","OK",10) == 1)
+    {
+        sprintf((void*)str,"NO IP ADDRESS");
+        if(SendATCommand("AT+CFUN=0\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        sprintf(
+            (void*)cmdstr,
+            "AT+CGDCONT=1,\"IP\",\"%s\"\r\n",
+            Params.Fields.APNName
+        );
+        if(SendATCommand(cmdstr,"OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        //if(SendATCommand("AT+CFUN=1\r\n","+CPIN: READY","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CFUN=1\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        ////
+        if(SendATCommand("AT+CGATT=1\r\n","OK","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CGATT?\r\n","+CGATT: 1","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CGNAPN\r\n","+CGNAPN: 1,","ERROR",10) != 1) goto EXIT_MQTT;
+        sprintf(
+            (void*)cmdstr,
+            "AT+CNCFG=0,1,\"%s\",\"%s\",\"%s\"\r\n",
+            Params.Fields.APNName,
+            Params.Fields.APNUsername,
+            Params.Fields.APNPassword
+        );
+        if(SendATCommand(cmdstr,"OK","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CNACT=0,1\r\n","+APP PDP: 0,ACTIVE","ERROR",10) != 1) goto EXIT_MQTT;
+        if(SendATCommand("AT+CNACT?\r\n","+CNACT: 0,1,\"0.0.0.0\"","OK",10) == 1) goto EXIT_MQTT;
+    }
+    sprintf((void*)str,"IP ADDRESS OK");
+    ///////////////////////////////////////////////////////////////
+//    if(Params.Fields.MQTTPort[0] == '8')
+//        sprintf((void*)cmdstr,"AT+CMQTTACCQ=0,\"%s\",1\r\n",IMEI);
+//    else
+//        sprintf((void*)cmdstr,"AT+CMQTTACCQ=0,\"%s\"\r\n",IMEI);
+//    
+//    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+//    {
+//        sprintf((void*)str,"CLIEND ID FAILED");
+//        goto EXIT_MQTT;
+//    }
+//    sprintf((void*)str,"CLIENT ID OK");
+
+    ////////////////////////////////////////////////////////////////
+    
+// RECONNECT_MQTT:    
+    
+    sprintf((void*)cmdstr,"AT+SMCONF=\"URL\",%s,%s\r\n",Params.Fields.MQTTHost,Params.Fields.MQTTPort);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"URL FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SMCONF=\"KEEPTIME\",%d\r\n",Params.Fields.MQTTKeepAlive);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"KEEPTIME FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SMCONF=\"CLEANSS\",1\r\n");
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"CLEAN SESSSION FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SMCONF=\"USERNAME\",\"%s\"\r\n",Params.Fields.MQTTUsername);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"USERNAME FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SMCONF=\"PASSWORD\",\"%s\"\r\n",Params.Fields.MQTTPassword);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"PASSWORD FAILED");
+        goto EXIT_MQTT;
+    }
+    sprintf((void*)cmdstr,"AT+SMCONF=\"CLIENTID\",\"%s\"\r\n",IMEI);
+    if(SendATCommand(cmdstr,"OK","ERROR",10) != 1)
+    {
+        ESP_LOGI(TAG,"CLIENT ID FAILED");
+        goto EXIT_MQTT;
+    }
+//    sprintf(
+//        (void*)cmdstr,
+//        "AT+CMQTTCONNECT=0,\"tcp://%s:%s\",60,1,\"%s\",\"%s\"\r\n",
+//        Params.Fields.MQTTHost,
+//        Params.Fields.MQTTPort,
+//        Params.Fields.MQTTUsername,
+//        Params.Fields.MQTTPassword
+//        );
+    if(SendATCommand("AT+SMCONN\r\n","OK","ERROR",20) != 1)
+    {
+        ESP_LOGI(TAG,"CONNECT FAILED");
+        goto EXIT_MQTT;
+    }
+    ESP_LOGI(TAG,"CONNECT OK");
+    
+    
+   
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("ConnectPKT_OK-TCP_request\r\n"); 
+    #endif
+    /////////////////////////////////////////////////////////////////
+//    sprintf((void*)cmdstr,"AT+CMQTTTOPIC=0,%d\r\n",topiclength);
+//    if(SendATCommand(cmdstr,">","ERROR",10) != 1)
+//    {
+//        ESP_LOGI(TAG,"TOPIC FAILED");
+//        goto EXIT_MQTT;
+//    }
+//    Print(Params.Fields.MQTTTopic); 
+//    LoopTimeout1 = 0;
+//    while(1)
+//    {
+//        if(MapForward(Buff2,BUFF2_SIZE,(char*)"OK",2) != NULL)
+//                break;
+//        if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>20))
+//        {       goto EXIT_MQTT; }
+//        
+//    }
+//    ESP_LOGI(TAG,"TOPIC OK");
+    /////////////////////////////////////////////////////////////////
+    while(1)
+    {
+        #ifdef DEBUG_PRINT
+        
+            DebugPrint("PUB while 1 Enter-TCP_request\r\n"); 
+        #endif
+        CheckBattery();
+        
+        if(CheckNetwork() == 1)
+            UpdateNetwork(0);
+        else
+            UpdateNetwork(1);
+        if( (MotionTimer > TIME_TO_SLEEP) && (IsQueueEmpty(RAMQueue)==0) )
+        {
+            retVal=0;
+            return 0;
+        }
+//////////////////////////////////////////////////////////
+    #ifdef EXT_ANT_ENABLED 
+        XCheckGPS();
+
+    #endif
+    #ifdef NETWORK_LOCATION_ENABLED
+        GetNetworkLocation();
+    #endif
+///////////////////////////////////////////////////////////      
+        
+        if(SystemState == State_ConnectedState) return 0; // Return and idle for proper configuration and prevent EEPROM access
+        
+        //ReadGPS();
+     
+     
+          //uwADCxConvertedValue = HAL_ADC_GetValue(&hadc);
+          //ADCvalue=(uwADCxConvertedValue*3.3)/4096;
+          
+        
+            
+
+            //if(tfLat == 0)tfLat = 8;
+            memset(str,0,500);
+            //pPacket->GEvent.Speed[9] = '\0';
+            //devid[8] = '\0';
+            topiclength = sprintf((void*)topic,(void*)Params.Fields.MQTTTopic);
+
+            
+            
+
+            ConvertToJSON(pPacket,&datalength,str);
+            sprintf((void*)cmdstr,"AT+SMPUB=\"%s\",%d,1,1\r\n",Params.Fields.MQTTTopic,datalength);
+            if(SendATCommand(cmdstr,">","ERROR",10) != 1)
+            {
+                // Dont use str here
+                goto EXIT_MQTT;
+            }
+            Print(str); 
+            LoopTimeout1 = 0;
+            while(1)
+            {
+                if(MapForward(Buff2,BUFF2_SIZE,(char*)"OK",2) != NULL)
+                {
+                    ESP_LOGI(TAG,"PUBLISH SUCCESS");
+                    TCPRetries=0;
+                    ConnectivityTimer = 0;
+                    break;
+                }
+                if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>20))
+                {   
+                    ESP_LOGI(TAG,"PUBLISH ERROR");                    
+                    goto EXIT_MQTT; 
+                        
+                }
+                
+            }
+//            if(SendATCommand("AT+CMQTTPUB=0,1,60\r\n","OK","ERROR",10) != 1)
+//            {
+//                ESP_LOGI(TAG,"PUBLISH NOT OK");
+//                goto EXIT_MQTT;
+//            }
+//            LoopTimeout1 = 0;
+//            while(1)
+//            {
+//                if(MapForward(Buff2,BUFF2_SIZE,(char*)"+CMQTTPUB: 0,0",14) != NULL)
+//                {
+//                    ESP_LOGI(TAG,"PUBLISH SUCCESS");
+//                    TCPRetries=0;
+//                    ConnectivityTimer = 0;
+//                    break;
+//                }
+//                if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>20))
+//                {       
+//                    ESP_LOGI(TAG,"PUBLISH FAILED");
+//                    goto EXIT_MQTT; 
+//                }
+//                
+//            } 
+            osDelay(3000);
+            #ifdef DEBUG_PRINT
+        
+                DebugPrint("PUB complete -TCP_request\r\n"); 
+            #endif
+            goto SUCCESS;
+        
+
+
+        if(MapForward(Buff2,BUFF2_SIZE,(char*)"CLOSE",5) != NULL)
+        {
+            #ifdef DEBUG_PRINT
+        
+                DebugPrint("CLOSED-TCP_request\r\n"); 
+            #endif
+            goto EXIT_MQTT;//goto RECONNECT;
+        }
+        if(Params.Fields.WorkingMode[0] !='T')
+            goto SUCCESS;
+        
+        SOS = gpio_get_level(GPIO_SOS);
+        if(SOS == 0)
+        {
+            goto SUCCESS;
+        }
+        
+        //CheckBattery();
+     
+        
+    }
+    
+    
+//    goto SUCCESS;
+    //free(string);
+SUCCESS: 
+    ClearEventCache();
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("TCP_SUCCESS -TCP_request\r\n"); 
+    #endif
+    //SendATCommand("AT+CMQTTREL=0\r\n","OK","ERROR",10);
+    //osDelay(1000);
+    SendATCommand("AT+SMDISC\r\n","OK","ERROR",10);
+    // SendATCommand("AT+CNACT=0,0\r\n","DEACTIVE","ERROR",10);
+//    #ifndef TIMER_ONLY_WAKEUP
+//    goto RECONNECT_MQTT;
+//    #endif
+//    
+    //osDelay(1000);
+    //SendATCommand("AT+CMQTTSTOP\r\n","+CMQTTSTOP:","ERROR",10);
+    //osDelay(1000);
+    
+    
+    //Print4("SUCCESS\r\n");
+    retVal=0;
+    return 0;
+//exit: 
+EXIT_MQTT:
+    #ifdef DEBUG_PRINT
+        
+        DebugPrint("TCP_EXIT -TCP_request\r\n"); 
+    #endif
+    //if(Params.Fields.MQTTPort[0] != '1')
+    {
+        
+        SendATCommand("AT+SMDISC\r\n","OK","ERROR",10);
+        // SendATCommand("AT+CNACT=0,0\r\n","DEACTIVE","ERROR",10);
+        //osDelay(1000);
+        
+    }
+//    ResetBuffer();
+//    Print("AT+NETCLOSE\r\n");
+//    LoopTimeout1 = 0;
+//    while(1)
+//    {
+//        if(MapForward(Buff2,BUFF2_SIZE,(char*)"NETCLOSE",8) != NULL)
+//                break;
+//        if((MapForward(Buff2,BUFF2_SIZE,(char*)"ERROR",5) != NULL) || (LoopTimeout1>5))
+//        {       break; }
+//        Count++;
+//    }
+//    osDelay(1000);
+    //Print4("FAILED\r\n");
+    
+  
+//    if(++TCPRetries < 8) 
+//        goto RESEND_TCP;
+//    else
+//    {        
+//        #ifdef DEBUG_PRINT
+//        
+//            DebugPrint("TCP_Retry_exceeded -TCP_request\r\n"); 
+//        #endif
+//        retVal = 1;
+////        HAL_UART_MspDeInit(&hlpuart1);
+////        MX_LPUART1_UART_Init();
+//        DisableGSM();
+//        InitGSM();
+//        TCPRetries = 0;
+//    }
+      
+//    #ifdef EEPROM_FIFO
+//    PostEEEvent(pPacket);
+//    #endif
+    
+    //PostEvent(pPacket);
+    RestoreEventCache();
+    
+    return 0;
+}
 #endif // SIM7070
 
 
@@ -5074,13 +5940,14 @@ void SyncRTC (void)
 
 void DeepSleep (void)
 {
+    
     if((Params.Fields.WorkingMode[0]=='T'  || Params.Fields.WorkingMode[0]=='H') || PowerButtonSleep == 1)
     {
-      if(((MotionTimer > TIME_TO_SLEEP) && (IsQueueEmpty(RAMQueue)==0)) || PowerButtonSleep == 1)
+      if(((MotionTimer > TIME_TO_SLEEP) /*&& (IsQueueEmpty(RAMQueue)==0)*/) || PowerButtonSleep == 1)
         {
 //            if(GSMEnabled == 1)
 //            {    
-//              //  HandleChargingState(); s
+//              //  HandleChargingState(); 
 //            }
             //Print1("Tada\r\n");
             DisableGSM();
@@ -5449,6 +6316,7 @@ ESP_LOGI(TAG,"Entered main task");
     // Init Default values
     //if( (Params.Fields.Band[0] == 0xFF) || (LoadDefaultParams == 1) )
     //LoadDefaultParams = 1;
+    printf("%d",LoadDefaultParams);
     if( (GetParamString("APNName",cmdstr) != ESP_OK) || (LoadDefaultParams == 1) )
     {
         //memcpy(Params.Bytes,DefaultParams.Bytes,sizeof(Params));
@@ -5466,9 +6334,7 @@ ESP_LOGI(TAG,"Entered main task");
     #endif  
     
 //    PostReboot();
-    
 
-    
     //EnableGSM();
     
 //    while(1)
@@ -5491,8 +6357,20 @@ ESP_LOGI(TAG,"Entered main task");
         printf("entering stop due to init gsm\n");
         goto ENTER_STOP_MODE;
     }
+    // printf("entering light sleep after init gsm\n");
+    // esp_sleep_enable_timer_wakeup(1000000);
+    // esp_light_sleep_start();
+
+    // MakeAllLED(PURPLE);
+    // osDelay(10000);
+
     //InitGPS();
-    CheckSignalStrength();
+    // CheckSignalStrength();
+    if(CheckNetwork() == 1)
+    {
+        ESP_LOGI(TAG,"Forcing Sleep after Init GSM due to no network\n");
+        ForceToSleep();
+    }
     
     
     //
@@ -5538,7 +6416,7 @@ ESP_LOGI(TAG,"Entered main task");
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-        ChargingStatus = DISCONNECTED;
+    ChargingStatus = DISCONNECTED;
         // DIE: // TBD
         //MotionTimer=500;
 //        SleepModeEnabled = 1;
@@ -5618,65 +6496,7 @@ ESP_LOGI(TAG,"Entered main task");
                 
             }
         }
-//        if(StartSending == 1)
-//        P2PS_STM_App_Update_Char(P2P_NOTIFY_CHAR_UUID, (uint8_t *)t);
-//		
-        
-//        if(DeviceStatus == 0)
-//        {
-//        BACK_TO_SLEEP:
-//            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET);
-//            DisableGSM();
-//            
-//            //UpdateNetwork(3);
-//            //UpdateLocation(0);
-//            
-//            // DIIIISSSAAAABLEEE RRRRTTTTCCC HEEERRREEE
-//            // DIIIISSSAAAABLEEE RRRRTTTTCCC HEEERRREEE
-//            // DIIIISSSAAAABLEEE RRRRTTTTCCC HEEERRREEE
-//            // DIIIISSSAAAABLEEE RRRRTTTTCCC HEEERRREEE
-//            __disable_irq();
-//            LPM_EnterStopMode();
-//            //LPM_ExitStopMode();
-//            //HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-//            
-//            __enable_irq();
-//            // Configures system clock after wake-up from STOP: enable HSE, PLL and select
-//            //PLL as system clock source (HSE and PLL are disabled in STOP mode) 
-//            //SystemClockConfig_STOP();
-//            osDelay(5000);
-//            SOS = gpio_get_level(GPIO_SOS);
-//            if(SOS == 0)
-//            {
-//                DeviceStatus = 1;
-//                esp_restart();
-//            }
-//            else 
-//                goto BACK_TO_SLEEP;
-//            
-//            
-//        }
-//        else //if(FrontPanelTimer < 30)
-//        {
-//            //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET); 
-//            HAL_ADC_Start_DMA(&hadc1, (void*)&BatteryADCCount , 1);
-//            if(CheckNetwork() == 0)            
-//                UpdateNetwork(1);            
-//            else 
-//                UpdateNetwork(0);
-//            
-//            ADCBatteryVoltage = (((float)BatteryADCCount*ADC_REFERENCE*(float)DIVIDER_FACTOR)/4096);
-//            ADCBatteryVoltage -=0.4;//ADCBatteryVoltage = (((float)BatteryADCCount*2*3)/4096);
-//
-//            UpdateBattery(ADCBatteryVoltage);            
-//            if(ADCBatteryVoltage < 3.65)
-//                DeviceStatus = 0;
-//        }
-        //else
-            ////HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET); 
-
-        //UpdateBattery(BatteryValue);
-        
+     
 #ifndef VALTRACK_V4_VTS
             CHECK_CHARGER_STATE:
             if( (ChargingStatus == CONNECTED) || (ADCBatteryVoltage < 3.0))
@@ -5695,6 +6515,92 @@ ESP_LOGI(TAG,"Entered main task");
                 // osDelay(20000);
                 // printf("after delay\n");
                 
+                // wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
+                // esp_wifi_init(&wifi_config);
+                // esp_wifi_start();
+                
+                
+                //  esp_wifi_stop();
+                //  esp_wifi_deinit();
+
+
+                
+                // esp_bt_controller_disable();
+                // esp_bt_controller_deinit();
+                // // #define GPIO_PWRKEY    7
+                // // #define GPIO_GSM_ENABLE    10
+                // // #define GPIO_TPS_ENABLE    4
+                // // #define GPIO_INT1     3
+                // // #define GPIO_SOS      9
+                // // #define GPIO_CHG_IN   4
+                // gpio_set_level(GPIO_PWRKEY, 0);   
+                // gpio_set_level(GPIO_GSM_ENABLE, 0);   
+                // gpio_set_level(GPIO_TPS_ENABLE, 0); 
+
+                // //gpio_wakeup_disable(2);
+
+                // led_deinit();
+                //gpio_set_level(GPIO_INT1, 0);   
+                //gpio_set_level(GPIO_SOS, 0);   
+                //gpio_set_level(GPIO_CHG_IN, 0);   
+
+                //  for(int i = 0;i<=21;i++)
+                // {
+                //     gpio_set_direction(i, GPIO_MODE_INPUT);
+                // }
+
+
+                
+
+
+        //         const esp_pm_config_esp32_t config = {
+        //     .max_freq_mhz = 40,
+        //     .min_freq_mhz = 8,
+        //     .light_sleep_enable = 1,
+        // };
+        //  ESP_ERROR_CHECK(esp_pm_configure(&config));
+    //              esp_sleep_pd_config(ESP_PD_DOMAIN_XTAL, ESP_PD_OPTION_ON);
+    //   esp_sleep_pd_config(ESP_PD_DOMAIN_CPU, ESP_PD_OPTION_OFF);
+    //   //esp_sleep_pd_config(ESP_PD_DOMAIN_RTC8M, ESP_PD_OPTION_OFF);
+    //  esp_sleep_pd_config(ESP_PD_DOMAIN_VDDSDIO, ESP_PD_OPTION_OFF);
+    // esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+
+
+                // nimble_port_freertos_deinit();  
+                //  nvs_flash_deinit();
+
+
+
+                // esp_sleep_config_gpio_isolate();
+                //rtc_sleep_enable_ultra_low(true);
+                // printf("1");
+                // esp_sleep_enable_timer_wakeup(10000000);
+                // printf("2");
+                // esp_light_sleep_start();
+
+
+
+
+                // printf("3");
+                //esp_sleep_enable_timer_wakeup(10000000);
+                //esp_deep_sleep_start();
+                //esp_deep_sleep(10000000);
+                // printf("4");
+                // esp_err_t err= esp_deep_sleep_try(10000000);
+                // printf("Failed sleep\n");
+                // //led_deinit();
+
+                // phy_bbpll_en_usb(true);
+
+                // MotionTimer=TIME_TO_SLEEP+10;
+                // DeepSleep();
+                // // phy_bbpll_en_usb(true);
+                //  SleepWakeupReason();
+
+                // // printf("returned\n");
+                // esp_restart();
+                // while(1);
+                // EnterDeepSleep();
                 /*
                 __disable_irq();
                 LPM_EnterStopMode();
@@ -5780,91 +6686,7 @@ ESP_LOGI(TAG,"Entered main task");
 
         #endif
         
-                
-         
-//        if(MotionTimer > 300)
-//        {
-//            //DisableGSM();
-//            //   
-
-//            osDelay(1000);
-//            //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET); //EN
-//            //EnterStandbyMode();
-//            
-//            //SystemClock_ConfigMSI();
-//            // Enter Sleep Mode , wake up is done once Key push button is pressed 
-//            //HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
-//            DisableGSM();
-//            
-//    
-//            //HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFI);
-//            
-//            
-//            LL_PWR_SetPowerMode(LL_PWR_MODE_STOP2);
-
-//            LL_LPM_EnableDeepSleep();
-
-//            __WFI();
-
-//            //sysClkCfg();
-//            
-//            
-//            /* ... STOP2 mode ... */
-
-//            /* Configure system clock after wake-up from STOP: enable HSE, PLL and select
-//            PLL as system clock source (HSE and PLL are disabled in STOP mode) */
-//            SystemClock_Config();
-//            
-//            
-//            
-//            //EnterSleepMode();
-//            //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_SET); //EN
-////            
-////            HAL_SuspendTick();
-////            // Enter Stop Mode 
-////            HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-
-////            // Resume Tick interrupt if disabled prior to sleep mode entry
-////            HAL_ResumeTick();
-////            // Configures system clock after wake-up from STOP: enable HSE, PLL and select
-////            //PLL as system clock source (HSE and PLL are disabled in STOP mode) 
-////            SystemClockConfig_STOP();
-//            //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET); //EN
-//            //CheckBattery();
-//            //HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5,GPIO_PIN_RESET); //EN
-//            //osDelay(2000);
-//            //CheckBattery();
-//            //EnableGSM();
-//            // 
-//            
-//        }
-        
-        /*if(GPSStatus =='A')
-        {
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,GPIO_PIN_RESET); //GSM ENABLE
-            osDelay(200);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,GPIO_PIN_SET); //GSM ENABLE
-            osDelay(200);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,GPIO_PIN_RESET); //GSM ENABLE
-            osDelay(200);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7,GPIO_PIN_SET); //GSM ENABLE
-            osDelay(200);
-        }*/
-        //if(BatteryTimeout == 1)
-        //{
-        //    CheckBattery();
-        //    BatteryTimeout = 0;
-        //}
-        /* Get the RTC current Time */
-//        if(RTCTimeout>(Params.Fields.PingInterval+20))
-//         {
-//             //SystemInternalClock_Config_LP();
-//             InitRTCAlarm();
-//             #ifdef DEBUG_PRINT
-//                DebugPrint("RTCTimeout+20 -StartMainTask\r\n"); 
-//            #endif
-//             
-//         }
+      
         
         // HAL_RTC_GetTime(&hrtc, &R, RTC_FORMAT_BIN); //TBD
         // HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN); //TBD
@@ -5959,8 +6781,18 @@ ESP_LOGI(TAG,"Entered main task");
         #endif
         if(SystemTimer%300==0)
         {
+            SendATCommand("AT\r\n","OK","ERROR",5); // Sleep exit
+            osDelay(1000);
+            // SendATCommand("AT+CFUN=1\r\n","OK","ERROR",5); 
+            // osDelay(1000);
+            if(CheckNetwork() == 1)
+            {
+                ESP_LOGI(TAG,"Forcing sleep from 300s main timer due to no network\n");
+                ForceToSleep();
+            }
             //CheckSignalStrength();
             CheckNetworkLocation();
+            // SendATCommand("AT+CFUN=0\r\n","OK","ERROR",5); 
         }
         if(Params.Fields.WorkingMode[0]=='S')
         {            
@@ -6547,7 +7379,7 @@ ESP_LOGI(TAG,"Entered main task");
 //            #endif
 //            GSMResetTimer = 0;
 //        }        
-   
+        // #ifdef VALTRACK_V4_VTS // No need to check and exit sleep mode of GSM for V4MF-MU
         if(CheckNetwork()==1)
         {
             UpdateNetwork(0);
@@ -6559,8 +7391,12 @@ ESP_LOGI(TAG,"Entered main task");
         #ifdef EXT_ANT_ENABLED
             XCheckGPS();
         #endif
+
+        // #endif
         vTaskDelay(1);
+        
     }
+    
   /* USER CODE END 3 */ 
 
 //  /* USER CODE BEGIN 5 */

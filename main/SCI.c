@@ -33,11 +33,13 @@ unsigned char HeaderReceived;
 unsigned char Header;
 char Lat[10],Long[10];
 char Altitude[10];
+char NS,EW;
+char Course[10];
 //http://maps.google.com/maps?z=18&q=10.8061,106.7130
 
 char Link[100];
 char D1,D2,GPSStatus='V';
-float fLat,fLong,pfLat,pfLong,fSpeed,fAltitude;     
+float fLat,fLong,pfLat,pfLong,fSpeed,fAltitude,fCourse;     
 char*pData;
 unsigned char CommaCount;
 
@@ -605,7 +607,7 @@ void HandleGPSINFData(unsigned char Byte)
 {
     unsigned char Data;
     u1++;
-  
+    float tfSpeed=0;
     
     {
         Data = Byte;//(uint8_t)(USART1->RDR); /* Receive data, clear flag */
@@ -666,7 +668,9 @@ void HandleGPSINFData(unsigned char Byte)
                     case 7:
                         pData = Speed;
                     break;
-                 
+                    // case 8:
+                    //     pData = Course;
+                    // break;
                     case 8:
 //                    pData = tBuff;
 //                    break;
@@ -674,7 +678,7 @@ void HandleGPSINFData(unsigned char Byte)
 //                        pData = GPSDate;
 //                    break;
 //                    case 10:
-                        
+                        // ESP_LOGW(TAG,"Values %s,%s,%s\n",Lat,Long,Speed);
                         if(GPSStatus!='A')
                         {
                             memset(Lat,0,sizeof(Lat));
@@ -687,10 +691,15 @@ void HandleGPSINFData(unsigned char Byte)
                         sscanf( (void*)Lat, "%f", &fLat);
                         sscanf( (void*)Long, "%f", &fLong);
                         sscanf( (void*)Altitude, "%f", &fAltitude);
-                        sscanf( (void*)Speed, "%f", &fSpeed);
+                        sscanf( (void*)Speed, "%f", &tfSpeed);
+                        if(tfSpeed>1)
+                            fSpeed=tfSpeed*1.852;// nM to kmph 
+                        else
+                            fSpeed=0;
+                        // sscanf( (void*)Course, "%f", &fCourse);
+
                         sscanf( (void*)GPSDate, "%2d%2d%2d", (int*)&GPSDay,(int*)&GPSMonth,(int*)&GPSYear);
-                        
-                        
+                                               
                         sscanf( (void*)GPSTime, "%2d%2d%2d", (int*)&GPSHours,(int*)&GPSMinutes,(int*)&GPSSeconds);
                         // printf("%s,%d,%d,%d\n",GPSDate,GPSDay,GPSMonth,GPSYear);
                         // printf("%s,%d,%d,%d\n",GPSTime,GPSHours,GPSMinutes,GPSSeconds);

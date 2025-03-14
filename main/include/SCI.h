@@ -41,7 +41,14 @@
 
 extern const char *TAG;
 
-#define DISABLE_CHARGING_LOOP
+#define DISABLE_CHARGING_LOOP // Uncomment for debugging
+
+// Enable TPS Buck converter control for disconnecting main battery when entering sleep mode. 
+// This helps in saving main battery drain
+//#define ENABLE_TPS_CONTROL 
+#define DISABLE_TPS_CONTROL
+
+
 
 //#define SE868_ENABLED
 #define EXT_ANT_ENABLED
@@ -81,7 +88,7 @@ extern const char *TAG;
 
 #define PARAMS_NORMAL
 
-//#define CUSTOM_MQTT_CLIENT_ID
+#define CUSTOM_MQTT_CLIENT_ID
 
 
 #define PAYLOAD_NORMAL
@@ -179,7 +186,7 @@ extern const char *TAG;
 
 #define BATTERY_READ_INTERVAL 300
 
-#define SHEETS_ENABLED
+// #define SHEETS_ENABLED
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 // PWRKEY 7
@@ -194,15 +201,20 @@ extern const char *TAG;
 #define GPIO_PWRKEY    7
 #define GPIO_GSM_ENABLE    10
 #define GPIO_TPS_ENABLE    4
+#define GPIO_LED_SIGNAL_PIN_SEL ((1ULL<<GPIO_LED_SIGNAL))
 #define GPIO_PWRKEY_GSM_ENABLE_PIN_SEL  ((1ULL<<GPIO_PWRKEY) | (1ULL<<GPIO_GSM_ENABLE))
 #define GPIO_TPS_ENABLE_PIN_SEL ((1ULL<<GPIO_TPS_ENABLE))
 #define GPIO_INT1     3
 #define GPIO_SOS      9
 #define GPIO_CHG_IN   4
-#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS) | (1ULL<<GPIO_CHG_IN))  
 
-//#define ENABLE_TPS_CONTROL 
-#define DISABLE_TPS_CONTROL
+#ifndef VALTRACK_V4_VTS
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS) | (1ULL<<GPIO_CHG_IN)) 
+#else
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<GPIO_INT1) | (1ULL<<GPIO_SOS) )  
+#endif
+
+
 
 #define UART_PORT_NUM UART_NUM_1
 
@@ -404,9 +416,11 @@ extern char Link[];
 extern char D1,D2,GPSStatus;
 extern char Lat[10],Long[10];
 extern char Altitude[10];
+extern char Course[10];
+extern char NS,EW;
 extern unsigned char f;
-extern float fLat,fLong,pfLat,pfLong,fSpeed,fAltitude; 
-
+extern float fLat,fLong,pfLat,pfLong,fSpeed,fAltitude,fCourse; 
+extern unsigned char prevGPSStatus;
 extern char GPSTime[],GPSDate[],GPSSpeed[];
 extern int GPSHours,GPSMinutes,GPSSeconds,GPSDay,GPSMonth,GPSYear;
 
@@ -482,7 +496,7 @@ void HandleGSMData(void);
 void RTOSDelay(unsigned int millis);
 void InitUART(void);
 void osDelay(unsigned int Value);
-
+double GPRMC2Degrees(double Value);
 
 
 /** 

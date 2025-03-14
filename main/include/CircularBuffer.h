@@ -79,16 +79,16 @@ typedef union EEPARAMS
         char APNPassword[20];
         char Band[30];
         char rxNumber[16];
-        char MQTTHost[30];
+        char MQTTHost[40];
         char MQTTPort[10];
         char MQTTClientID[120];
-        char MQTTTopic[30];
+        char MQTTTopic[40];
         char MQTTProtocolName[10];
         int MQTTLVL;
         int MQTTFlags;
         unsigned int MQTTKeepAlive;
-        char MQTTUsername[30];
-        char MQTTPassword[35];
+        char MQTTUsername[40];
+        char MQTTPassword[45];
         
         
     }Fields;
